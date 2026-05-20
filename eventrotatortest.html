@@ -107,15 +107,20 @@
         }
 
         /* 📐 Font Awesome アイコン全体のサイズと文字色の設定 */
-        .icon {
-            font-size: 18px;
-            margin-right: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #AAAAAA; /* 通常時のアイコンの色 */
-            transition: color 0.3s ease, transform 0.3s ease;
-        }
+	.icon {
+    		font-size: 18px;
+    		margin-right: 12px;
+    		display: flex;
+    		align-items: center;
+    		justify-content: center;
+   		 transition: color 0.3s ease, transform 0.3s ease;
+	}
+
+	/* 通常時のアイコンの色をそれぞれのイメージカラーに設定 */
+	.theme-follow .icon    { color: #9146FF; } /* フォロー：Twitchパープル */
+	.theme-sub .icon       { color: #FFD700; } /* サブスク：ゴールド */
+	.theme-bits .icon      { color: #00E5FF; } /* Bits：アクアブルー */
+	.theme-donation .icon  { color: #FF0000; } /* ドネーション：レッド */
 
         /* 🚨 アラート発生時：文字アイコンを真っ白にして少し大きく */
         #rotator-container.alert-active .icon { 
