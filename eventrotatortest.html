@@ -2,16 +2,20 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Streamlabs Real-time Event Rotator (Font Awesome & Queue Support)</title>
+    <title>Streamlabs Real-time Event Rotator (Lubrifont JP N & Queue Support)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap">
+    
+    <!-- 🅰️ WDXL Lubrifont JP N を Google Fonts から読み込み -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=WDXL+Lubrifont+JP+N&display=swap">
+    
     <style>
         body {
             margin: 0;
             padding: 0;
             background: transparent;
             overflow: hidden;
-            font-family: 'Inter', sans-serif;
+            /* 🅰️ 全体にフォントを適用 */
+            font-family: 'WDXL Lubrifont JP N', sans-serif;
             -webkit-font-smoothing: antialiased;
         }
 
@@ -106,21 +110,21 @@
             transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
         }
 
-        /* 📐 Font Awesome アイコン全体のサイズと文字色の設定 */
-	.icon {
-    		font-size: 18px;
-    		margin-right: 12px;
-    		display: flex;
-    		align-items: center;
-    		justify-content: center;
-   		 transition: color 0.3s ease, transform 0.3s ease;
-	}
+        /* 📐 Font Awesome アイコン全体のサイズ設定 */
+        .icon {
+            font-size: 22px; 
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.3s ease, transform 0.3s ease;
+        }
 
-	/* 通常時のアイコンの色をそれぞれのイメージカラーに設定 */
-	.theme-follow .icon    { color: #9146FF; } /* フォロー：Twitchパープル */
-	.theme-sub .icon       { color: #FFD700; } /* サブスク：ゴールド */
-	.theme-bits .icon      { color: #00E5FF; } /* Bits：アクアブルー */
-	.theme-donation .icon  { color: #FF0000; } /* ドネーション：レッド */
+        /* 🎨 通常時のアイコンの色をそれぞれのイメージカラーに設定 */
+        .theme-follow .icon    { color: #9146FF; } /* フォロー：Twitchパープル */
+        .theme-sub .icon       { color: #FFD700; } /* サブスク：ゴールド */
+        .theme-bits .icon      { color: #00E5FF; } /* Bits：アクアブルー */
+        .theme-donation .icon  { color: #FF0000; } /* ドネーション：レッド */
 
         /* 🚨 アラート発生時：文字アイコンを真っ白にして少し大きく */
         #rotator-container.alert-active .icon { 
@@ -129,19 +133,21 @@
             filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4)); 
         }
 
+        /* 📐 テキストボックスの基本設定 */
         .text-box {
             color: #F0F0F0;
-            font-size: 14px;
+            font-size: 18px; 
             font-weight: 400;
             letter-spacing: 0.5px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            padding-top: 2px; /* ドット絵フォントの上下中央のズレを微調整 */
         }
 
         .prefix {
             font-weight: 600;
-            margin-right: 6px;
+            margin-right: 8px;
             color: #AAAAAA;
         }
 
