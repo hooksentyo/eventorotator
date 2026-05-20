@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Streamlabs Real-time Event Rotator (Perfect Transparent)</title>
+    <title>Streamlabs Real-time Event Rotator (Perfect Mask Spec)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap">
     <style>
@@ -15,32 +15,65 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* 📦 メインコンテナ：ここを半透明の座布団にします */
+        /* 📦 メインコンテナ */
         #rotator-container {
             width: 400px;
             height: 50px;
             position: relative;
             box-sizing: border-box;
+            overflow: hidden;
             border-radius: 6px;
-            
-            /* ⬛ 【座布団の半透明】背景はここだけで指定。もう裏に余計なパーツはありません */
-            background: rgba(15, 15, 15, 0.75); 
-            
-            /* 🎨 【ネオン枠線】1pxの細い枠線自体にグラデーションをかけます */
-            border: 1px solid transparent;
-            background-image: linear-gradient(rgba(15, 15, 15, 0.75), rgba(15, 15, 15, 0.75)), 
-                              conic-gradient(from 0deg, #9146FF 0%, #00E676 12%, transparent 25%, transparent 100%);
-            background-origin: border-box;
-            background-clip: padding-box, border-box;
-            
-            /* 💡 アニメーションの基準点をカチッと設定 */
-            background-size: 100% 100%, 100% 100%;
-            animation: rotateNeonBorder 6s linear infinite;
+            background: transparent;
         }
 
-        /* 🚨 アラート発生時の発光と揺れ */
+        /* 🌈 【裏で回るネオン】マスクで隠すので、どれだけ大きく回しても裏に透けません */
+        .neon-wiper {
+            position: absolute;
+            top: -150%;
+            left: -50%;
+            width: 200%;
+            height: 400%;
+            background: conic-gradient(
+                from 0deg,
+                #9146FF 0%,
+                #00E676 8%,
+                transparent 16%,
+                transparent 100
+            );
+            animation: rotateNeon 6s linear infinite;
+            z-index: 1;
+        }
+
+        /* 🛡️ 【最重要：物理マスク】1pxの枠線だけをくり抜いて、裏の光を「線」に変える壁 */
+        .mask-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+            /* 1pxの縁だけを透明にして光を通し、それ以外（中心と外側）を完全に遮蔽するSVGマスク */
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="50" viewBox="0 0 400 50"><path fill-rule="evenodd" d="M0,0 H400 V50 H0 Z M1,1 H399 V49 H1 Z" fill="black"/></svg>');
+            background-size: 100% 100%;
+        }
+
+        /* ⬛ 【半透明の黒座布団】マスクの内側（1px内側）に綺麗に敷き詰めます */
+        .transparent-bg {
+            position: absolute;
+            top: 1px;
+            left: 1px;
+            width: calc(100% - 2px);
+            height: calc(100% - 2px);
+            background: rgba(15, 15, 15, 0.75); /* 💡 配信画面が綺麗に透ける75%の半透明黒 */
+            border-radius: 5px;
+            z-index: 3;
+            pointer-events: none;
+        }
+
+        /* 🚨 アラート発生時の発光（シャドウ） */
         #rotator-container.alert-active {
-            animation: alertShake 0.4s linear, rotateNeonBorder 2s linear infinite; /* アラート時は光の回転も速く */
+            animation: alertShake 0.4s linear;
         }
         #rotator-container.alert-active.twitch { box-shadow: 0 0 25px rgba(145, 70, 255, 0.8); }
         #rotator-container.alert-active.youtube { box-shadow: 0 0 25px rgba(255, 0, 0, 0.8); }
@@ -49,15 +82,15 @@
         /* 📝 中身のテキスト・アイコン */
         .content-wrapper {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 1px;
+            left: 1px;
+            width: calc(100% - 2px);
+            height: calc(100% - 2px);
             display: flex;
             align-items: center;
             padding: 0 16px;
             box-sizing: border-box;
-            z-index: 3;
+            z-index: 4; /* 最前面に配置 */
             
             opacity: 0;
             transform: translateY(12px);
@@ -112,21 +145,9 @@
         #rotator-container.alert-active .prefix { color: #FFFFFF !important; opacity: 0.9; }
         #rotator-container.alert-active .icon { color: #FFFFFF !important; transform: scale(1.2); }
 
-        /* 🔄 枠線のグラデーションだけを綺麗に回転させる裏技 */
-        @property --neon-angle {
-            syntax: '<angle>';
-            initial-value: 0deg;
-            inherits: false;
-        }
-        @keyframes rotateNeonBorder {
-            from {
-                background-image: linear-gradient(rgba(15, 15, 15, 0.75), rgba(15, 15, 15, 0.75)), 
-                                  conic-gradient(from 0deg, #9146FF 0%, #00E676 12%, transparent 25%, transparent 100%);
-            }
-            to {
-                background-image: linear-gradient(rgba(15, 15, 15, 0.75), rgba(15, 15, 15, 0.75)), 
-                                  conic-gradient(from 360deg, #9146FF 0%, #00E676 12%, transparent 25%, transparent 100%);
-            }
+        @keyframes rotateNeon {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         @keyframes alertShake {
@@ -144,6 +165,16 @@
 <body>
 
     <div id="rotator-container">
+        <!-- 層1: グルグル回るネオンの塊 -->
+        <div class="neon-wiper"></div>
+        
+        <!-- 層2: 縁の1px以外を完全に塞ぐ黒いマスク壁 -->
+        <div class="mask-overlay"></div>
+        
+        <!-- 層3: 真ん中にハメ込む半透明の黒座布団 -->
+        <div class="transparent-bg"></div>
+
+        <!-- 層4: 文字コンテンツ -->
         <div id="wrapper-follower" class="content-wrapper"></div>
         <div id="wrapper-sub" class="content-wrapper"></div>
         <div id="wrapper-donation" class="content-wrapper"></div>
