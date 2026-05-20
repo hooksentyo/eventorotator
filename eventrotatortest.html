@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Streamlabs Real-time Event Rotator (Minimal + Donation Price)</title>
+    <title>Streamlabs Real-time Event Rotator (Alert Slide-In)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap">
     <style>
@@ -15,50 +15,57 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* 📦 メインコンテナ：ミニマルな半透明座布団 */
+        /* 📦 メインコンテナ：クリッピング用 */
         #rotator-container {
             width: 400px;
             height: 50px;
             position: relative;
             box-sizing: border-box;
-            border-radius: 4px;
+            border-radius: 6px;
             overflow: hidden;
             
-            /* ⬛ 【半透明の黒座布団】0.8＝透明度80% */
+            /* 通常時はいつもの綺麗な半透明黒座布団 */
             background: rgba(10, 10, 10, 0.8); 
-            
-            /* シンプルな外枠（光らない） */
             border: 1px solid rgba(255, 255, 255, 0.08);
             
-            transition: box-shadow 0.3s ease;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
         }
 
-        /* 🚨 アラート発生時の上品な下部ライン */
-        #rotator-container::after {
-            content: '';
+        /* 🚨 アラート時に座布団丸ごと色を上書きするレイヤー */
+        #alert-bg-overlay {
             position: absolute;
-            bottom: 0;
-            left: 50%;
-            width: 0;
-            height: 2px;
-            transition: all 0.4s ease;
-            z-index: 5;
-        }
-        
-        /* アラート発生時だけラインを伸ばす */
-        #rotator-container.alert-active::after {
+            top: 0;
             left: 0;
             width: 100%;
+            height: 100%;
+            z-index: 1;
+            transform: translateX(-100%); /* 初期状態は左側に隠す */
+            opacity: 0;
+            transition: none; /* JSで一瞬で左に戻すために初期はnone */
         }
-        #rotator-container.alert-active.twitch::after { background: #9146FF; }
-        #rotator-container.alert-active.youtube::after { background: #FF0000; }
-        #rotator-container.alert-active.donation-theme::after { background: #00E676; }
 
-        /* 🚨 アラート時の全体の影 */
-        #rotator-container.alert-active {
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            border-color: rgba(255, 255, 255, 0.15);
+        /* アラート起動時のスライドインアニメーション（イージングを鋭く） */
+        #rotator-container.alert-active #alert-bg-overlay {
+            opacity: 1;
+            transform: translateX(0);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
         }
+        /* アラート終了時のフェードアウトハケ */
+        #rotator-container.alert-exit #alert-bg-overlay {
+            opacity: 0;
+            transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.7, 0, 0.84, 0), opacity 0.3s ease;
+        }
+
+        /* 各アラート専用のド派手な座布団カラー */
+        .alert-bg-follow { background: #9146FF !important; }      /* 🟣 フォローは紫 */
+        .alert-bg-sub { background: #FFD700 !important; }         /* 🟡 サブスクは黄（ゴールド） */
+        .alert-bg-donation { background: #FF0000 !important; }    /* 🔴 ドネーションは赤 */
+
+        /* 🚨 アラート時のコンテナ自体の発光（色付き座布団をさらに引き立てる） */
+        #rotator-container.alert-active.alert-type-follow { box-shadow: 0 0 20px rgba(145, 70, 255, 0.6); border-color: rgba(255,255,255,0.4); }
+        #rotator-container.alert-active.alert-type-sub { box-shadow: 0 0 20px rgba(255, 215, 0, 0.6); border-color: rgba(255,255,255,0.4); }
+        #rotator-container.alert-active.alert-type-donation { box-shadow: 0 0 20px rgba(255, 0, 0, 0.6); border-color: rgba(255,255,255,0.4); }
 
         /* 📝 中身のテキスト・アイコン */
         .content-wrapper {
@@ -71,29 +78,41 @@
             align-items: center;
             padding: 0 16px;
             box-sizing: border-box;
-            z-index: 3;
+            z-index: 3; /* 色付き座布団（z-index:1）より上に配置 */
             
             opacity: 0;
             transform: translateY(10px);
-            transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
             visibility: hidden;
         }
 
+        /* 通常のローテーション切り替え */
         .content-wrapper.active {
             opacity: 1;
             transform: translateY(0);
             visibility: visible;
         }
-
         .content-wrapper.exit {
             opacity: 0;
             transform: translateY(-10px);
         }
 
-        /* 通常時のアイコン色 */
-        .twitch .icon { color: #9146FF; }
-        .youtube .icon { color: #FF0000; }
-        .donation-theme .icon { color: #00E676; }
+        /* 🚨 アラート発生時専用の文字スライドイン（座布団と一緒に左から右へシュッ！） */
+        #rotator-container.alert-active .content-wrapper.active {
+            transform: translateX(-50px);
+            opacity: 0;
+            transition: none;
+        }
+        #rotator-container.alert-active .content-wrapper.active.slide-ready {
+            transform: translateX(0);
+            opacity: 1;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+        }
+
+        /* アイコンの色指定（通常時） */
+        .theme-follow .icon { color: #9146FF; }
+        .theme-sub .icon { color: #FFD700; }
+        .theme-donation .icon { color: #FF0000; }
 
         .icon {
             font-size: 16px;
@@ -120,11 +139,20 @@
             color: #AAAAAA;
         }
 
+        /* アラートモード時の文字装飾（背景が明るくなるので文字をパキッとクッキリさせます） */
+        #rotator-container.alert-active .text-box { color: #FFFFFF !important; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+        #rotator-container.alert-active .prefix { color: #FFFFFF !important; opacity: 0.9; }
+        #rotator-container.alert-active .icon { color: #FFFFFF !important; transform: scale(1.1); filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4)); }
+
     </style>
 </head>
 <body>
 
     <div id="rotator-container">
+        <!-- アラートの時だけ左からシュッと滑り込んでくる色付き背景 -->
+        <div id="alert-bg-overlay"></div>
+
+        <!-- 各コンテンツレイヤー -->
         <div id="wrapper-follower" class="content-wrapper"></div>
         <div id="wrapper-sub" class="content-wrapper"></div>
         <div id="wrapper-donation" class="content-wrapper"></div>
@@ -137,11 +165,11 @@
         const ROTATE_INTERVAL = 10000; 
         const ALERT_DURATION = 5000;   
 
+        // 💡 ご指定のカラーに合わせ、内部のsource名（クラス名）も分かりやすくリファクタリングしました
         let store = {
-            follower: { name: "No Data Yet", source: "twitch", prefix: "LAST FOLLOWER:" },
-            sub: { name: "No Data Yet", source: "twitch", prefix: "LAST SUB:" },
-            // 💡 ドネーションだけ分かりやすいよう prefix のコロンを抜いて、デザインで調整できるようにします
-            donation: { name: "No Data Yet", source: "donation-theme", prefix: "LAST DONATOR:" }
+            follower: { name: "No Data Yet", source: "theme-follow", prefix: "LAST FOLLOWER:" },
+            sub: { name: "No Data Yet", source: "theme-sub", prefix: "LAST SUB:" },
+            donation: { name: "No Data Yet", source: "theme-donation", prefix: "LAST DONATOR:" }
         };
 
         const wrappers = {
@@ -150,6 +178,7 @@
             donation: document.getElementById('wrapper-donation')
         };
         const container = document.getElementById('rotator-container');
+        const alertBg = document.getElementById('alert-bg-overlay');
 
         let currentKey = 'follower';
         let rotateTimer = null;
@@ -163,9 +192,9 @@
             wrapper.className = `content-wrapper ${data.source}`;
 
             let iconHTML = '<i class="fa-solid fa-star"></i>'; 
-            if (data.source === 'twitch') iconHTML = '<i class="fa-brands fa-twitch"></i>';
-            if (data.source === 'youtube') iconHTML = '<i class="fa-brands fa-youtube"></i>';
-            if (data.source === 'donation-theme') iconHTML = '<i class="fa-solid fa-money-bill-wave"></i>';
+            if (key === 'follower') iconHTML = '<i class="fa-brands fa-twitch"></i>';
+            if (key === 'sub') iconHTML = '<i class="fa-solid fa-gem"></i>'; // サブスク用に上品な宝石アイコン
+            if (key === 'donation') iconHTML = '<i class="fa-solid fa-heart"></i>'; // ドネーション用にハートアイコン
 
             wrapper.innerHTML = `
                 <div class="icon">${iconHTML}</div>
@@ -176,23 +205,35 @@
             `;
         }
 
-        function changeActiveWrapper(nextKey) {
+        function changeActiveWrapper(nextKey, isAlertCall = false) {
             const currentWrapper = wrappers[currentKey];
             const nextWrapper = wrappers[nextKey];
 
             if (currentWrapper && currentWrapper.classList.contains('active')) {
                 currentWrapper.classList.add('exit');
                 setTimeout(() => {
-                    currentWrapper.classList.remove('active', 'exit');
+                    currentWrapper.classList.remove('active', 'exit', 'slide-ready');
                 }, 400);
             }
 
             currentKey = nextKey;
             updateWrapperHTML(nextKey);
             
-            setTimeout(() => {
-                if(nextWrapper) nextWrapper.classList.add('active');
-            }, 50);
+            if (isAlertCall) {
+                // アラートの時は一瞬遅らせて左から右へのスライドインを同期させる
+                if(nextWrapper) {
+                    nextWrapper.classList.remove('exit', 'slide-ready');
+                    nextWrapper.classList.add('active');
+                    setTimeout(() => {
+                        nextWrapper.classList.add('slide-ready');
+                    }, 50);
+                }
+            } else {
+                // 通常ローテーション
+                setTimeout(() => {
+                    if(nextWrapper) nextWrapper.classList.add('active');
+                }, 50);
+            }
         }
 
         function startRotation() {
@@ -207,12 +248,35 @@
 
         function triggerAlertInterrupt(key) {
             isAlerting = true;
-            const sourceClass = store[key].source;
-            container.className = `alert-active ${sourceClass}`;
-            changeActiveWrapper(key);
+            
+            // 1. まずコンテナの状態と背景色リセットして左に隠す
+            container.className = '';
+            alertBg.className = '';
+            
+            // アラートの種類に応じた背景色クラスを設定
+            let bgClass = 'alert-bg-follow';
+            let typeClass = 'alert-type-follow';
+            if (key === 'sub') { bgClass = 'alert-bg-sub'; typeClass = 'alert-type-sub'; }
+            if (key === 'donation') { bgClass = 'alert-bg-donation'; typeClass = 'alert-type-donation'; }
+            
+            alertBg.classList.add(bgClass);
+
+            // 2. ほんの数ミリ秒空けてアニメーションをトリガー（スライドイン！）
             setTimeout(() => {
-                isAlerting = false;
-                container.className = '';
+                container.classList.add('alert-active', typeClass);
+                changeActiveWrapper(key, true);
+            }, 20);
+
+            // 3. 指定時間後にハケるアニメーションへ移行
+            setTimeout(() => {
+                container.classList.remove('alert-active');
+                container.classList.add('alert-exit');
+                
+                // コンテナが右へハケ終わる頃に通常モードへ戻す
+                setTimeout(() => {
+                    container.className = '';
+                    isAlerting = false;
+                }, 300);
             }, ALERT_DURATION);
         }
 
@@ -239,17 +303,13 @@
                     let data = parsed;
                     if (Array.isArray(parsed) && parsed.length > 1) { data = parsed[1]; }
                     
-                    // 📥 初回データ読み込み時 (履歴)
                     if (data.type === 'init' && data.history) {
                         if (data.history.follow && data.history.follow.length > 0) {
                             store.follower.name = data.history.follow[0].name;
-                            store.follower.source = data.history.follow[0].platform || 'twitch';
                         }
                         if (data.history.subscription && data.history.subscription.length > 0) {
                             store.sub.name = data.history.subscription[0].name;
-                            store.sub.source = data.history.subscription[0].platform || 'twitch';
                         }
-                        // 💡 履歴のドネーションを「名前 (価格)」に整形
                         if (data.history.donation && data.history.donation.length > 0) {
                             const d = data.history.donation[0];
                             store.donation.name = `${d.name} (${d.currency}${d.amount})`;
@@ -257,22 +317,18 @@
                         Object.keys(store).forEach(key => updateWrapperHTML(key));
                     }
 
-                    // 🚨 リアルタイム通知発生時
                     if (data.message && data.message.length > 0) {
                         const eventType = data.type; 
                         const msg = data.message[0];
 
                         if (eventType === 'follow') {
                             store.follower.name = msg.name;
-                            store.follower.source = msg.platform || 'twitch';
                             triggerAlertInterrupt('follower');
                         } 
                         else if (eventType === 'subscription' || eventType === 'resub') {
                             store.sub.name = msg.name;
-                            store.sub.source = msg.platform || 'twitch';
                             triggerAlertInterrupt('sub');
                         } 
-                        // 💡 リアルタイムのドネーション通知を「名前 (価格)」に整形
                         else if (eventType === 'donation') {
                             store.donation.name = `${msg.name} (${msg.currency}${msg.amount})`;
                             triggerAlertInterrupt('donation');
