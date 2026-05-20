@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Streamlabs Real-time Event Rotator</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        #rotator-container {
+            width: 400px;
+            height: 50px;
+            position: relative;
+        }
+
+        /* 【ベースの黒座布団】完全固定 */
+        .event-card {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            background: rgba(15, 15, 15, 0.8);
+            border-left: 4px solid #ffffff;
+            border-radius: 0 4px 4px 0;
+            padding: 0 16px;
+            box-sizing: border-box;
+            transition: border-color 0.5s ease, box-shadow 0.5s ease, border-width 0.3s ease;
+        }
+
+        .event-card.alert-active {
+            border-left-width: 6px;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+        }
+
+        /* 各プラットフォームのテーマカラー */
+        .event-card.twitch { border-left-color: #9146FF; }
+        .event-card.twitch .icon { color: #9146FF; }
+
+        .event-card.youtube { border-left-color: #FF0000; }
+        .event-card.youtube .icon { color: #FF0000; }
+
+        .event-card.donation-theme { border-left-color: #00E676; }
+        .event-card.donation-theme .icon { color: #00E676; }
+
+        /* 【中身】文字とアイコンのみフェード */
+        .content {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            opacity: 1;
+            transition: opacity 0.4s ease;
+        }
+
+        .content.fade-out {
+            opacity: 0;
+        }
+
+        .icon {
+            font-size: 18px;
+            margin-right: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            transition: color 0.5s ease;
+        }
+
+        .text-box {
+            color: #EAEAEA;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 0.8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .prefix {
+            font-weight: 600;
+            margin-right: 6px;
+            color: #999999;
+            text-transform: uppercase;
+        }
+
+        .name {
+            font-weight: 400;
+            color: #ffffff;
+            text-transform: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="rotator-container">
+        <div id="main-card" class="event-card">
+            <div id="main-content" class="content"></div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // ✨ 設定エリア
+        // ==========================================
+        // ここに「Your Socket API Token」を貼り付けてください
+        const TOKEN = ""; 
+        const ROTATE_INTERVAL = 10000; // 通常時のローテーション間隔（10秒）
+        const ALERT_DURATION = 5000;   // 新規アラートの割り込み表示時間（5秒）
+        // ==========================================
+
+        let store = {
+            follower: { name: "No Data", source: "twitch", prefix: "NEW FOLLOWER" },
+            sub: { name: "No Data", source: "twitch", prefix: "NEW SUB" },
+            donation: { name: "No Data", source: "donation-theme", prefix: "DONATOR" }
+        };
+
+        const card = document.getElementById('main-card');
+        const content = document.getElementById('main-content');
+
+        let currentKey = 'follower';
+        let rotateTimer = null;
+        let isAlerting = false;
+        let alertTimeoutTimer = null;
+        let currentSourceClass = "";
+
+        // 画面の表示を更新する関数
+        function displayEvent(key, forceAlertMode = false) {
+            const data = store[key];
+            currentKey = key;
+
+            content.classList.add('fade-out');
+
+            setTimeout(() => {
+                // 同じプラットフォームなら座布団は再描画せず完全固定（2周目のチラつき防止）
+                if (currentSourceClass !== data.source || forceAlertMode) {
+                    card.className = `event-card ${data.source}`;
+                    currentSourceClass = data.source;
+                }
+                
+                if (forceAlertMode) {
+                    card.classList.add('alert-active');
+                } else {
+                    card.classList.remove('alert-active');
+                }
+
+                let iconHTML = '<i class="fa-solid fa-star"></i>';
+                if (data.source === 'twitch') iconHTML = '<i class="fa-brands fa-twitch"></i>';
+                if (data.source === 'youtube') iconHTML = '<i class="fa-brands fa-youtube"></i>';
+                if (data.source === 'donation-theme') iconHTML = '<i class="fa-solid fa-money-bill-wave"></i>';
+
+                content.innerHTML = `
+                    <div class="icon">${iconHTML}</div>
+                    <div class="text-box">
+                        <span class="prefix">${data.prefix}</span>
+                        <span class="name">${data.name}</span>
+                    </div>
+                `;
+
+                content.classList.remove('fade-out');
+            }, 400); 
+        }
+
+        // 通常のローテーションループ
+        function startRotation() {
+            if (rotateTimer) clearInterval(rotateTimer);
+            rotateTimer = setInterval(() => {
+                if (isAlerting) return;
+                const keys = Object.keys(store);
+                let nextIndex = (keys.indexOf(currentKey) + 1) % keys.length;
+                displayEvent(keys[nextIndex]);
+            }, ROTATE_INTERVAL);
+        }
+
+        // 新規アラートの割り込み処理
+        function triggerAlertInterrupt(key) {
+            isAlerting = true;
+            if (alertTimeoutTimer) clearTimeout(alertTimeoutTimer);
+            
+            displayEvent(key, true);
+
+            alertTimeoutTimer = setTimeout(() => {
+                isAlerting = false;
+                card.classList.remove('alert-active');
+            }, ALERT_DURATION);
+        }
+
+        // 初期表示起動
+        displayEvent(currentKey);
+        startRotation();
+
+        // ==========================================
+        // 🌐 Streamlabs Socket API との接続 (公式ドキュメント準拠の最新URL)
+        // ==========================================
+        const urlParams = new URLSearchParams(window.location.search);
+const activeToken = TOKEN || urlParams.get('token');
+
+if (!activeToken) {
+    console.error("Tokenが見つかりません。URLの末尾に ?token=〜 をつけてください。");
+}
+
+const socket = new WebSocket(`wss://sockets.streamlabs.com?token=${activeToken}`);
+
+        socket.onopen = () => {
+            console.log('Streamlabs WebSocket v1.0 Connected!');
+        };
+
+        socket.onmessage = (message) => {
+            const data = JSON.parse(message.data);
+            
+            // 過去ログ（初期データ）の読み込み
+            if (data.type === 'init') {
+                if (data.history.follow && data.history.follow.length > 0) {
+                    store.follower.name = data.history.follow[0].name;
+                    store.follower.source = data.history.follow[0].platform || 'twitch';
+                }
+                if (data.history.subscription && data.history.subscription.length > 0) {
+                    store.sub.name = data.history.subscription[0].name;
+                    store.sub.source = data.history.subscription[0].platform || 'twitch';
+                }
+                if (data.history.donation && data.history.donation.length > 0) {
+                    store.donation.name = `${data.history.donation[0].currency}${data.history.donation[0].amount}`;
+                }
+                displayEvent(currentKey);
+            }
+
+            // リアルタイムイベントの受信（検証・テスト時も反応しやすいよう条件を最適化）
+            if (data.message) {
+                const eventType = data.type;
+                const msg = data.message[0];
+
+                if (!msg) return;
+
+                if (eventType === 'follow') {
+                    store.follower.name = msg.name;
+                    store.follower.source = msg.platform || 'twitch';
+                    triggerAlertInterrupt('follower');
+                } 
+                else if (eventType === 'subscription' || eventType === 'resub') {
+                    store.sub.name = msg.name;
+                    store.sub.source = msg.platform || 'twitch';
+                    triggerAlertInterrupt('sub');
+                } 
+                else if (eventType === 'donation') {
+                    store.donation.name = `${msg.currency}${msg.amount}`;
+                    triggerAlertInterrupt('donation');
+                }
+            }
+        };
+
+        socket.onclose = () => {
+            console.log('WebSocket Disconnected. Reconnecting in 5s...');
+            setTimeout(() => {
+                location.reload();
+            }, 5000);
+        };
+    </script>
+</body>
+</html>
