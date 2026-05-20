@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Streamlabs Real-time Event Rotator (Perfect Mask Spec)</title>
+    <title>Streamlabs Real-time Event Rotator (Minimal + Donation Price)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap">
     <style>
@@ -15,85 +15,66 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* 📦 メインコンテナ */
+        /* 📦 メインコンテナ：ミニマルな半透明座布団 */
         #rotator-container {
             width: 400px;
             height: 50px;
             position: relative;
             box-sizing: border-box;
+            border-radius: 4px;
             overflow: hidden;
-            border-radius: 6px;
-            background: transparent;
+            
+            /* ⬛ 【半透明の黒座布団】0.8＝透明度80% */
+            background: rgba(10, 10, 10, 0.8); 
+            
+            /* シンプルな外枠（光らない） */
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            
+            transition: box-shadow 0.3s ease;
         }
 
-        /* 🌈 【裏で回るネオン】マスクで隠すので、どれだけ大きく回しても裏に透けません */
-        .neon-wiper {
+        /* 🚨 アラート発生時の上品な下部ライン */
+        #rotator-container::after {
+            content: '';
             position: absolute;
-            top: -150%;
-            left: -50%;
-            width: 200%;
-            height: 400%;
-            background: conic-gradient(
-                from 0deg,
-                #9146FF 0%,
-                #00E676 8%,
-                transparent 16%,
-                transparent 100
-            );
-            animation: rotateNeon 6s linear infinite;
-            z-index: 1;
+            bottom: 0;
+            left: 50%;
+            width: 0;
+            height: 2px;
+            transition: all 0.4s ease;
+            z-index: 5;
+        }
+        
+        /* アラート発生時だけラインを伸ばす */
+        #rotator-container.alert-active::after {
+            left: 0;
+            width: 100%;
+        }
+        #rotator-container.alert-active.twitch::after { background: #9146FF; }
+        #rotator-container.alert-active.youtube::after { background: #FF0000; }
+        #rotator-container.alert-active.donation-theme::after { background: #00E676; }
+
+        /* 🚨 アラート時の全体の影 */
+        #rotator-container.alert-active {
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.15);
         }
 
-        /* 🛡️ 【最重要：物理マスク】1pxの枠線だけをくり抜いて、裏の光を「線」に変える壁 */
-        .mask-overlay {
+        /* 📝 中身のテキスト・アイコン */
+        .content-wrapper {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 2;
-            pointer-events: none;
-            /* 1pxの縁だけを透明にして光を通し、それ以外（中心と外側）を完全に遮蔽するSVGマスク */
-            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="50" viewBox="0 0 400 50"><path fill-rule="evenodd" d="M0,0 H400 V50 H0 Z M1,1 H399 V49 H1 Z" fill="black"/></svg>');
-            background-size: 100% 100%;
-        }
-
-        /* ⬛ 【半透明の黒座布団】マスクの内側（1px内側）に綺麗に敷き詰めます */
-        .transparent-bg {
-            position: absolute;
-            top: 1px;
-            left: 1px;
-            width: calc(100% - 2px);
-            height: calc(100% - 2px);
-            background: rgba(15, 15, 15, 0.75); /* 💡 配信画面が綺麗に透ける75%の半透明黒 */
-            border-radius: 5px;
-            z-index: 3;
-            pointer-events: none;
-        }
-
-        /* 🚨 アラート発生時の発光（シャドウ） */
-        #rotator-container.alert-active {
-            animation: alertShake 0.4s linear;
-        }
-        #rotator-container.alert-active.twitch { box-shadow: 0 0 25px rgba(145, 70, 255, 0.8); }
-        #rotator-container.alert-active.youtube { box-shadow: 0 0 25px rgba(255, 0, 0, 0.8); }
-        #rotator-container.alert-active.donation-theme { box-shadow: 0 0 25px rgba(0, 230, 118, 0.8); }
-
-        /* 📝 中身のテキスト・アイコン */
-        .content-wrapper {
-            position: absolute;
-            top: 1px;
-            left: 1px;
-            width: calc(100% - 2px);
-            height: calc(100% - 2px);
             display: flex;
             align-items: center;
             padding: 0 16px;
             box-sizing: border-box;
-            z-index: 4; /* 最前面に配置 */
+            z-index: 3;
             
             opacity: 0;
-            transform: translateY(12px);
+            transform: translateY(10px);
             transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
             visibility: hidden;
         }
@@ -106,29 +87,28 @@
 
         .content-wrapper.exit {
             opacity: 0;
-            transform: translateY(-12px);
+            transform: translateY(-10px);
         }
 
+        /* 通常時のアイコン色 */
         .twitch .icon { color: #9146FF; }
         .youtube .icon { color: #FF0000; }
         .donation-theme .icon { color: #00E676; }
 
         .icon {
-            font-size: 18px;
-            margin-right: 14px;
+            font-size: 16px;
+            margin-right: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 24px;
-            transition: transform 0.3s ease;
+            width: 20px;
         }
 
         .text-box {
-            color: #EAEAEA;
+            color: #F0F0F0;
             font-size: 14px;
             font-weight: 400;
-            letter-spacing: 0.8px;
-            text-transform: uppercase;
+            letter-spacing: 0.5px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -137,44 +117,14 @@
         .prefix {
             font-weight: 600;
             margin-right: 6px;
-            color: #999;
+            color: #AAAAAA;
         }
 
-        /* アラートモード時の文字装飾 */
-        #rotator-container.alert-active .text-box { color: #FFFFFF !important; text-shadow: 0 1px 4px rgba(0,0,0,0.5); }
-        #rotator-container.alert-active .prefix { color: #FFFFFF !important; opacity: 0.9; }
-        #rotator-container.alert-active .icon { color: #FFFFFF !important; transform: scale(1.2); }
-
-        @keyframes rotateNeon {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        @keyframes alertShake {
-            0% { transform: translate(0, 0); }
-            10% { transform: translate(-3px, -1px); }
-            20% { transform: translate(3px, 1px); }
-            30% { transform: translate(-3px, 1px); }
-            40% { transform: translate(3px, -1px); }
-            50% { transform: translate(-1px, 1px); }
-            60% { transform: translate(1px, -1px); }
-            100% { transform: translate(0, 0); }
-        }
     </style>
 </head>
 <body>
 
     <div id="rotator-container">
-        <!-- 層1: グルグル回るネオンの塊 -->
-        <div class="neon-wiper"></div>
-        
-        <!-- 層2: 縁の1px以外を完全に塞ぐ黒いマスク壁 -->
-        <div class="mask-overlay"></div>
-        
-        <!-- 層3: 真ん中にハメ込む半透明の黒座布団 -->
-        <div class="transparent-bg"></div>
-
-        <!-- 層4: 文字コンテンツ -->
         <div id="wrapper-follower" class="content-wrapper"></div>
         <div id="wrapper-sub" class="content-wrapper"></div>
         <div id="wrapper-donation" class="content-wrapper"></div>
@@ -188,9 +138,10 @@
         const ALERT_DURATION = 5000;   
 
         let store = {
-            follower: { name: "No Data Yet", source: "twitch", prefix: "LAST FOLLOWER" },
-            sub: { name: "No Data Yet", source: "twitch", prefix: "LAST SUB" },
-            donation: { name: "$0.00", source: "donation-theme", prefix: "LAST DONATOR" }
+            follower: { name: "No Data Yet", source: "twitch", prefix: "LAST FOLLOWER:" },
+            sub: { name: "No Data Yet", source: "twitch", prefix: "LAST SUB:" },
+            // 💡 ドネーションだけ分かりやすいよう prefix のコロンを抜いて、デザインで調整できるようにします
+            donation: { name: "No Data Yet", source: "donation-theme", prefix: "LAST DONATOR:" }
         };
 
         const wrappers = {
@@ -219,7 +170,7 @@
             wrapper.innerHTML = `
                 <div class="icon">${iconHTML}</div>
                 <div class="text-box">
-                    <span class="prefix">${data.prefix}:</span>
+                    <span class="prefix">${data.prefix}</span>
                     <span class="name">${data.name}</span>
                 </div>
             `;
@@ -288,6 +239,7 @@
                     let data = parsed;
                     if (Array.isArray(parsed) && parsed.length > 1) { data = parsed[1]; }
                     
+                    // 📥 初回データ読み込み時 (履歴)
                     if (data.type === 'init' && data.history) {
                         if (data.history.follow && data.history.follow.length > 0) {
                             store.follower.name = data.history.follow[0].name;
@@ -297,12 +249,15 @@
                             store.sub.name = data.history.subscription[0].name;
                             store.sub.source = data.history.subscription[0].platform || 'twitch';
                         }
+                        // 💡 履歴のドネーションを「名前 (価格)」に整形
                         if (data.history.donation && data.history.donation.length > 0) {
-                            store.donation.name = `${data.history.donation[0].currency}${data.history.donation[0].amount}`;
+                            const d = data.history.donation[0];
+                            store.donation.name = `${d.name} (${d.currency}${d.amount})`;
                         }
                         Object.keys(store).forEach(key => updateWrapperHTML(key));
                     }
 
+                    // 🚨 リアルタイム通知発生時
                     if (data.message && data.message.length > 0) {
                         const eventType = data.type; 
                         const msg = data.message[0];
@@ -317,8 +272,9 @@
                             store.sub.source = msg.platform || 'twitch';
                             triggerAlertInterrupt('sub');
                         } 
+                        // 💡 リアルタイムのドネーション通知を「名前 (価格)」に整形
                         else if (eventType === 'donation') {
-                            store.donation.name = `${msg.currency}${msg.amount}`;
+                            store.donation.name = `${msg.name} (${msg.currency}${msg.amount})`;
                             triggerAlertInterrupt('donation');
                         }
                     }
