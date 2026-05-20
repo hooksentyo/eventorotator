@@ -143,17 +143,18 @@
     </div>
 
     <script>
-        // OBSのURL末尾から ?token=xxx を取得
+        // URL末尾からトークンを取得
         const urlParams = new URLSearchParams(window.location.search);
         const TOKEN = urlParams.get('token'); 
 
         const ROTATE_INTERVAL = 10000; 
         const ALERT_DURATION = 5000;   
 
+        // 💡 待機中に「LOADING...」で止まって見えないよう、初期値を「READY」やサンプル名に安全に書き換えます
         let store = {
-            follower: { name: "LOADING...", source: "twitch", prefix: "NEW FOLLOWER" },
-            sub: { name: "LOADING...", source: "twitch", prefix: "NEW SUB" },
-            donation: { name: "LOADING...", source: "donation-theme", prefix: "DONATOR" }
+            follower: { name: "No Data Yet", source: "twitch", prefix: "LAST FOLLOWER" },
+            sub: { name: "No Data Yet", source: "twitch", prefix: "LAST SUB" },
+            donation: { name: "$0.00", source: "donation-theme", prefix: "LAST DONATOR" }
         };
 
         const cards = {
@@ -169,6 +170,7 @@
         function updateCardHTML(key) {
             const data = store[key];
             const card = cards[key];
+            if (!card) return;
             
             card.className = `event-card ${data.source}`;
             if (isAlerting && currentKey === key) card.classList.add('alert-active');
@@ -202,7 +204,7 @@
             updateCardHTML(nextKey);
             
             setTimeout(() => {
-                nextCard.classList.add('active');
+                if(nextCard) nextCard.classList.add('active');
             }, 50);
         }
 
@@ -224,73 +226,69 @@
             }, ALERT_DURATION);
         }
 
-        // 初期表示
+        // 初期実行（データがなくても強制的にローテーションを回す）
         Object.keys(store).forEach(key => updateCardHTML(key));
-        cards[currentKey].classList.add('active');
+        if(cards[currentKey]) cards[currentKey].classList.add('active');
         startRotation();
 
-        // 🌐 トークンチェックと最新のWebSocket通信ロジック
+        // 🌐 WebSocket接続処理（確実なURLパラメータ付与方式に戻します）
         if (!TOKEN) {
             document.body.innerHTML = "<div style='color:red; padding:10px; font-size:12px;'>エラー: URLの末尾に ?token=あなたのトークン を設定してください。</div>";
         } else {
-            // URLにトークンを載せず、プレーンに接続を開始する
-            const socket = new WebSocket('wss://sockets.streamlabs.com');
+            // Streamlabsのバックエンドライブラリと同じ接続方法を採用
+            const socket = new WebSocket(`wss://sockets.streamlabs.com?token=${TOKEN}`);
 
             socket.onopen = () => {
-                console.log('WebSocket Connection Established.');
-                
-                // 🔑【超重要】公式仕様に基づく、接続直後のトークン認証メッセージ送信
-                const authMessage = {
-                    method: "auth",
-                    token: TOKEN
-                };
-                socket.send(JSON.stringify(authMessage));
-                console.log('Auth credentials sent to Streamlabs.');
+                console.log('Streamlabs WebSocket successfully connected!');
             };
 
             socket.onmessage = (message) => {
-                const data = JSON.parse(message.data);
-                
-                // 初期履歴データの読み込み成功時
-                if (data.type === 'init') {
-                    if (data.history && data.history.follow && data.history.follow.length > 0) {
-                        store.follower.name = data.history.follow[0].name;
-                        store.follower.source = data.history.follow[0].platform || 'twitch';
+                try {
+                    const data = JSON.parse(message.data);
+                    
+                    // 履歴データ（init）が送られてきた場合のみ中身を安全に解析
+                    if (data.type === 'init' && data.history) {
+                        if (data.history.follow && data.history.follow.length > 0) {
+                            store.follower.name = data.history.follow[0].name;
+                            store.follower.source = data.history.follow[0].platform || 'twitch';
+                        }
+                        if (data.history.subscription && data.history.subscription.length > 0) {
+                            store.sub.name = data.history.subscription[0].name;
+                            store.sub.source = data.history.subscription[0].platform || 'twitch';
+                        }
+                        if (data.history.donation && data.history.donation.length > 0) {
+                            store.donation.name = `${data.history.donation[0].currency}${data.history.donation[0].amount}`;
+                        }
+                        Object.keys(store).forEach(key => updateCardHTML(key));
                     }
-                    if (data.history && data.history.subscription && data.history.subscription.length > 0) {
-                        store.sub.name = data.history.subscription[0].name;
-                        store.sub.source = data.history.subscription[0].platform || 'twitch';
-                    }
-                    if (data.history && data.history.donation && data.history.donation.length > 0) {
-                        store.donation.name = `${data.history.donation[0].currency}${data.history.donation[0].amount}`;
-                    }
-                    Object.keys(store).forEach(key => updateCardHTML(key));
-                }
 
-                // リアルタイム通知（テスト・本番両対応）
-                if (data.message) {
-                    const eventType = data.type; 
-                    const msg = data.message[0];
+                    // 配信中のリアルタイム通知（テストアラート通知もここを通ります）
+                    if (data.message && data.message.length > 0) {
+                        const eventType = data.type; 
+                        const msg = data.message[0];
 
-                    if (eventType === 'follow') {
-                        store.follower.name = msg.name;
-                        store.follower.source = msg.platform || 'twitch';
-                        triggerAlertInterrupt('follower');
-                    } 
-                    else if (eventType === 'subscription' || eventType === 'resub') {
-                        store.sub.name = msg.name;
-                        store.sub.source = msg.platform || 'twitch';
-                        triggerAlertInterrupt('sub');
-                    } 
-                    else if (eventType === 'donation') {
-                        store.donation.name = `${msg.currency}${msg.amount}`;
-                        triggerAlertInterrupt('donation');
+                        if (eventType === 'follow') {
+                            store.follower.name = msg.name;
+                            store.follower.source = msg.platform || 'twitch';
+                            triggerAlertInterrupt('follower');
+                        } 
+                        else if (eventType === 'subscription' || eventType === 'resub') {
+                            store.sub.name = msg.name;
+                            store.sub.source = msg.platform || 'twitch';
+                            triggerAlertInterrupt('sub');
+                        } 
+                        else if (eventType === 'donation') {
+                            store.donation.name = `${msg.currency}${msg.amount}`;
+                            triggerAlertInterrupt('donation');
+                        }
                     }
+                } catch (e) {
+                    console.error("Data parse error: ", e);
                 }
             };
 
             socket.onclose = () => {
-                console.log('WebSocket disconnected. Retrying...');
+                console.log('WebSocket closed. Reconnecting...');
                 setTimeout(() => { location.reload(); }, 5000);
             };
         }
