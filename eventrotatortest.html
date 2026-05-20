@@ -21,7 +21,6 @@
             position: relative;
         }
 
-        /* 【ベースの黒座布団】完全固定 */
         .event-card {
             position: absolute;
             top: 0;
@@ -43,7 +42,6 @@
             box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
         }
 
-        /* 各プラットフォームのテーマカラー */
         .event-card.twitch { border-left-color: #9146FF; }
         .event-card.twitch .icon { color: #9146FF; }
 
@@ -53,7 +51,6 @@
         .event-card.donation-theme { border-left-color: #00E676; }
         .event-card.donation-theme .icon { color: #00E676; }
 
-        /* 【中身】文字とアイコンのみフェード */
         .content {
             display: flex;
             align-items: center;
@@ -108,16 +105,16 @@
         </div>
     </div>
 
+    <!-- 🌐 新しいStreamlabsの電波を正常に受信するための公式スクリプト -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+
     <script>
         // ==========================================
         // ✨ 設定エリア
         // ==========================================
-        // 安全のため、ここにはトークンを書き込まないで空っぽ（""）にします。
-        // OBSのURLの末尾につけた ?token=... から自動的に読み取られます。
         const TOKEN = ""; 
-        
-        const ROTATE_INTERVAL = 10000; // 通常時のローテーション間隔（10秒）
-        const ALERT_DURATION = 5000;   // 新規アラートの割り込み表示時間（5秒）
+        const ROTATE_INTERVAL = 10000; 
+        const ALERT_DURATION = 5000;   
         // ==========================================
 
         let store = {
@@ -135,7 +132,6 @@
         let alertTimeoutTimer = null;
         let currentSourceClass = "";
 
-        // 画面の表示を更新する関数
         function displayEvent(key, forceAlertMode = false) {
             const data = store[key];
             currentKey = key;
@@ -171,7 +167,6 @@
             }, 400); 
         }
 
-        // 通常のローテーションループ
         function startRotation() {
             if (rotateTimer) clearInterval(rotateTimer);
             rotateTimer = setInterval(() => {
@@ -182,7 +177,6 @@
             }, ROTATE_INTERVAL);
         }
 
-        // 新規アラートの割り込み処理
         function triggerAlertInterrupt(key) {
             isAlerting = true;
             if (alertTimeoutTimer) clearTimeout(alertTimeoutTimer);
@@ -195,51 +189,48 @@
             }, ALERT_DURATION);
         }
 
-        // 初期表示起動
         displayEvent(currentKey);
         startRotation();
 
-        // ==========================================
-        // 🌐 URLからトークンを自動で引っこ抜く処理
-        // ==========================================
+        // URLからトークンを取得
         const urlParams = new URLSearchParams(window.location.search);
         const activeToken = TOKEN || urlParams.get('token');
 
         if (!activeToken) {
-            console.error("Tokenが見つかりません。URLの末尾に ?token=〜 をつけてください。");
+            console.error("Tokenが見つかりません。");
             store.follower.name = "TOKEN ERROR";
             displayEvent('follower');
         } else {
-            // Streamlabs Socket API との接続（旧URL形式）
-            const socket = new WebSocket(`wss://sockets.streamlabs.com?token=${activeToken}`);
+            // 🌐 【重要】Streamlabsの最新の通信方式（Socket.io公式）に変更
+            const streamlabs = io(`https://sheets.streamlabs.com?token=${activeToken}`, {
+                transports: ['websocket']
+            });
 
-            socket.onopen = () => {
-                console.log('Streamlabs WebSocket Connected via URL Token!');
-            };
+            streamlabs.on('connect', () => {
+                console.log('Streamlabs Connected via Latest Protocol!');
+            });
 
-            socket.onmessage = (message) => {
-                const data = JSON.parse(message.data);
-                
-                // 過去ログ（初期データ）の読み込み
-                if (data.type === 'init') {
-                    if (data.history.follow && data.history.follow.length > 0) {
-                        store.follower.name = data.history.follow[0].name;
-                        store.follower.source = data.history.follow[0].platform || 'twitch';
+            streamlabs.on('event', (eventData) => {
+                // 過去の履歴データの読み込み
+                if (eventData.type === 'init') {
+                    if (eventData.history.follow && eventData.history.follow.length > 0) {
+                        store.follower.name = eventData.history.follow[0].name;
+                        store.follower.source = eventData.history.follow[0].platform || 'twitch';
                     }
-                    if (data.history.subscription && data.history.subscription.length > 0) {
-                        store.sub.name = data.history.subscription[0].name;
-                        store.sub.source = data.history.subscription[0].platform || 'twitch';
+                    if (eventData.history.subscription && eventData.history.subscription.length > 0) {
+                        store.sub.name = eventData.history.subscription[0].name;
+                        store.sub.source = eventData.history.subscription[0].platform || 'twitch';
                     }
-                    if (data.history.donation && data.history.donation.length > 0) {
-                        store.donation.name = `${data.history.donation[0].currency}${data.history.donation[0].amount}`;
+                    if (eventData.history.donation && eventData.history.donation.length > 0) {
+                        store.donation.name = `${eventData.history.donation[0].currency}${eventData.history.donation[0].amount}`;
                     }
                     displayEvent(currentKey);
                 }
 
-                // リアルタイムイベントの受信
-                if (data.message) {
-                    const eventType = data.type;
-                    const msg = data.message[0];
+                // リアルタイムイベント受信（テスト信号もここを通ります）
+                if (eventData.message) {
+                    const eventType = eventData.type;
+                    const msg = eventData.message[0];
 
                     if (!msg) return;
 
@@ -258,14 +249,7 @@
                         triggerAlertInterrupt('donation');
                     }
                 }
-            };
-
-            socket.onclose = () => {
-                console.log('WebSocket Disconnected. Reconnecting in 5s...');
-                setTimeout(() => {
-                    location.reload();
-                }, 5000);
-            };
+            });
         }
     </script>
 </body>
