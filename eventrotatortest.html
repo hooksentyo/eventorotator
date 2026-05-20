@@ -19,49 +19,91 @@
             width: 400px;
             height: 50px;
             position: relative;
+            padding: 4px;
+            box-sizing: border-box;
+        }
+
+        /* 🎨 1個の光がゆっくり周回するネオンエフェクト */
+        .event-card::before {
+            content: '';
+            position: absolute;
+            top: -60%;
+            left: -60%;
+            width: 220%;
+            height: 220%;
+            
+            /* 光の範囲を「15%」までギュッと絞ることで、一筋の光の玉に見せています */
+            background: conic-gradient(
+                from 0deg,
+                #9146FF 0%,
+                #00E676 8%,
+                transparent 15%,
+                transparent 100%
+            );
+            
+            /* 8秒（8s）かけて1周するスローモーション設定 */
+            animation: rotateNeon 8s linear infinite;
+            z-index: 1;
         }
 
         .event-card {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 4px;
+            left: 4px;
+            width: calc(100% - 8px);
+            height: calc(100% - 8px);
             display: flex;
             align-items: center;
-            background: rgba(15, 15, 15, 0.8);
-            border-left: 4px solid #ffffff;
-            border-radius: 0 4px 4px 0;
             padding: 0 16px;
             box-sizing: border-box;
-            transition: border-color 0.5s ease, box-shadow 0.5s ease, border-width 0.3s ease;
+            overflow: hidden; 
+            border-radius: 6px;
+            
+            opacity: 0;
+            transform: translateY(15px);
+            transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+            visibility: hidden;
+        }
+
+        .event-card::after {
+            content: '';
+            position: absolute;
+            top: 1px;
+            left: 1px;
+            width: calc(100% - 2px);
+            height: calc(100% - 2px);
+            background: rgba(15, 15, 15, 0.95); /* 少し暗めにして光を引き立たせる */
+            border-radius: 5px;
+            z-index: 2;
+        }
+
+        .event-card.active {
+            opacity: 1;
+            transform: translateY(0);
+            visibility: visible;
+            z-index: 10;
+        }
+
+        .event-card.exit {
+            opacity: 0;
+            transform: translateY(-15px);
         }
 
         .event-card.alert-active {
-            border-left-width: 6px;
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.15);
         }
 
-        .event-card.twitch { border-left-color: #9146FF; }
-        .event-card.twitch .icon { color: #9146FF; }
-
-        .event-card.youtube { border-left-color: #FF0000; }
-        .event-card.youtube .icon { color: #FF0000; }
-
-        .event-card.donation-theme { border-left-color: #00E676; }
-        .event-card.donation-theme .icon { color: #00E676; }
-
         .content {
+            position: relative;
+            z-index: 3;
             display: flex;
             align-items: center;
             width: 100%;
-            opacity: 1;
-            transition: opacity 0.4s ease;
         }
 
-        .content.fade-out {
-            opacity: 0;
-        }
+        .event-card.twitch .icon { color: #9146FF; }
+        .event-card.youtube .icon { color: #FF0000; }
+        .event-card.donation-theme .icon { color: #00E676; }
 
         .icon {
             font-size: 18px;
@@ -70,7 +112,7 @@
             align-items: center;
             justify-content: center;
             width: 24px;
-            transition: color 0.5s ease;
+            height: 100%;
         }
 
         .text-box {
@@ -78,93 +120,94 @@
             font-size: 14px;
             font-weight: 400;
             letter-spacing: 0.8px;
+            text-transform: uppercase;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        
+
         .prefix {
             font-weight: 600;
             margin-right: 6px;
-            color: #999999;
-            text-transform: uppercase;
+            color: #999;
         }
 
-        .name {
-            font-weight: 400;
-            color: #ffffff;
-            text-transform: none;
+        @keyframes rotateNeon {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
 
     <div id="rotator-container">
-        <div id="main-card" class="event-card">
-            <div id="main-content" class="content"></div>
-        </div>
+        <div id="card-follower" class="event-card"><div class="content"></div></div>
+        <div id="card-sub" class="event-card"><div class="content"></div></div>
+        <div id="card-donation" class="event-card"><div class="content"></div></div>
     </div>
 
-    <!-- 🌐 新しいStreamlabsの電波を正常に受信するための公式スクリプト -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-
     <script>
-        // ==========================================
-        // ✨ 設定エリア
-        // ==========================================
-        const TOKEN = ""; 
+        // URLの末尾（?token=xxx）からトークンを自動で読み取る仕組み
+        const urlParams = new URLSearchParams(window.location.search);
+        const TOKEN = urlParams.get('token'); 
+
         const ROTATE_INTERVAL = 10000; 
         const ALERT_DURATION = 5000;   
-        // ==========================================
 
         let store = {
-            follower: { name: "No Data", source: "twitch", prefix: "NEW FOLLOWER" },
-            sub: { name: "No Data", source: "twitch", prefix: "NEW SUB" },
-            donation: { name: "No Data", source: "donation-theme", prefix: "DONATOR" }
+            follower: { name: "Loading...", source: "twitch", prefix: "NEW FOLLOWER" },
+            sub: { name: "Loading...", source: "twitch", prefix: "NEW SUB" },
+            donation: { name: "Loading...", source: "donation-theme", prefix: "DONATOR" }
         };
 
-        const card = document.getElementById('main-card');
-        const content = document.getElementById('main-content');
+        const cards = {
+            follower: document.getElementById('card-follower'),
+            sub: document.getElementById('card-sub'),
+            donation: document.getElementById('card-donation')
+        };
 
         let currentKey = 'follower';
         let rotateTimer = null;
         let isAlerting = false;
-        let alertTimeoutTimer = null;
-        let currentSourceClass = "";
 
-        function displayEvent(key, forceAlertMode = false) {
+        function updateCardHTML(key) {
             const data = store[key];
-            currentKey = key;
+            const card = cards[key];
+            
+            card.className = `event-card ${data.source}`;
+            if (isAlerting && currentKey === key) card.classList.add('alert-active');
 
-            content.classList.add('fade-out');
+            let iconHTML = '<i class="fa-solid fa-star"></i>'; 
+            if (data.source === 'twitch') iconHTML = '<i class="fa-brands fa-twitch"></i>';
+            if (data.source === 'youtube') iconHTML = '<i class="fa-brands fa-youtube"></i>';
+            if (data.source === 'donation-theme') iconHTML = '<i class="fa-solid fa-money-bill-wave"></i>';
 
+            card.querySelector('.content').innerHTML = `
+                <div class="icon">${iconHTML}</div>
+                <div class="text-box">
+                    <span class="prefix">${data.prefix}:</span>
+                    <span class="name">${data.name}</span>
+                </div>
+            `;
+        }
+
+        function changeActiveCard(nextKey) {
+            const currentCard = cards[currentKey];
+            const nextCard = cards[nextKey];
+
+            if (currentCard && currentCard.classList.contains('active')) {
+                currentCard.classList.add('exit');
+                setTimeout(() => {
+                    currentCard.classList.remove('active', 'exit');
+                }, 500);
+            }
+
+            currentKey = nextKey;
+            updateCardHTML(nextKey);
+            
             setTimeout(() => {
-                if (currentSourceClass !== data.source || forceAlertMode) {
-                    card.className = `event-card ${data.source}`;
-                    currentSourceClass = data.source;
-                }
-                
-                if (forceAlertMode) {
-                    card.classList.add('alert-active');
-                } else {
-                    card.classList.remove('alert-active');
-                }
-
-                let iconHTML = '<i class="fa-solid fa-star"></i>';
-                if (data.source === 'twitch') iconHTML = '<i class="fa-brands fa-twitch"></i>';
-                if (data.source === 'youtube') iconHTML = '<i class="fa-brands fa-youtube"></i>';
-                if (data.source === 'donation-theme') iconHTML = '<i class="fa-solid fa-money-bill-wave"></i>';
-
-                content.innerHTML = `
-                    <div class="icon">${iconHTML}</div>
-                    <div class="text-box">
-                        <span class="prefix">${data.prefix}</span>
-                        <span class="name">${data.name}</span>
-                    </div>
-                `;
-
-                content.classList.remove('fade-out');
-            }, 400); 
+                nextCard.classList.add('active');
+            }, 50);
         }
 
         function startRotation() {
@@ -173,66 +216,55 @@
                 if (isAlerting) return;
                 const keys = Object.keys(store);
                 let nextIndex = (keys.indexOf(currentKey) + 1) % keys.length;
-                displayEvent(keys[nextIndex]);
+                changeActiveCard(keys[nextIndex]);
             }, ROTATE_INTERVAL);
         }
 
         function triggerAlertInterrupt(key) {
             isAlerting = true;
-            if (alertTimeoutTimer) clearTimeout(alertTimeoutTimer);
-            
-            displayEvent(key, true);
-
-            alertTimeoutTimer = setTimeout(() => {
+            changeActiveCard(key);
+            setTimeout(() => {
                 isAlerting = false;
-                card.classList.remove('alert-active');
             }, ALERT_DURATION);
         }
 
-        displayEvent(currentKey);
+        // 初期化
+        Object.keys(store).forEach(key => updateCardHTML(key));
+        cards[currentKey].classList.add('active');
         startRotation();
 
-        // URLからトークンを取得
-        const urlParams = new URLSearchParams(window.location.search);
-        const activeToken = TOKEN || urlParams.get('token');
-
-        if (!activeToken) {
-            console.error("Tokenが見つかりません。");
-            store.follower.name = "TOKEN ERROR";
-            displayEvent('follower');
+        // 🌐 トークンがない場合の警告と接続処理
+        if (!TOKEN) {
+            document.body.innerHTML = "<div style='color:red; padding:10px; font-size:12px;'>エラー: URLの末尾に ?token=あなたのトークン を設定してください。</div>";
         } else {
-            // 🌐 【重要】Streamlabsの最新の通信方式（Socket.io公式）に変更
-            const streamlabs = io(`https://sheets.streamlabs.com?token=${activeToken}`, {
-                transports: ['websocket']
-            });
+            const socket = new WebSocket(`wss://sockets.streamlabs.com?token=${TOKEN}`);
 
-            streamlabs.on('connect', () => {
-                console.log('Streamlabs Connected via Latest Protocol!');
-            });
+            socket.onopen = () => {
+                console.log('Streamlabs WebSocket Connected!');
+            };
 
-            streamlabs.on('event', (eventData) => {
-                // 過去の履歴データの読み込み
-                if (eventData.type === 'init') {
-                    if (eventData.history.follow && eventData.history.follow.length > 0) {
-                        store.follower.name = eventData.history.follow[0].name;
-                        store.follower.source = eventData.history.follow[0].platform || 'twitch';
+            socket.onmessage = (message) => {
+                const data = JSON.parse(message.data);
+                
+                if (data.type === 'init') {
+                    if (data.history.follow && data.history.follow.length > 0) {
+                        store.follower.name = data.history.follow[0].name;
+                        store.follower.source = data.history.follow[0].platform || 'twitch';
                     }
-                    if (eventData.history.subscription && eventData.history.subscription.length > 0) {
-                        store.sub.name = eventData.history.subscription[0].name;
-                        store.sub.source = eventData.history.subscription[0].platform || 'twitch';
+                    if (data.history.subscription && data.history.subscription.length > 0) {
+                        store.sub.name = data.history.subscription[0].name;
+                        store.sub.source = data.history.subscription[0].platform || 'twitch';
                     }
-                    if (eventData.history.donation && eventData.history.donation.length > 0) {
-                        store.donation.name = `${eventData.history.donation[0].currency}${eventData.history.donation[0].amount}`;
+                    if (data.history.donation && data.history.donation.length > 0) {
+                        store.donation.name = `${data.history.donation[0].currency}${data.history.donation[0].amount}`;
                     }
-                    displayEvent(currentKey);
+                    Object.keys(store).forEach(key => updateCardHTML(key));
                 }
 
-                // リアルタイムイベント受信（テスト信号もここを通ります）
-                if (eventData.message) {
-                    const eventType = eventData.type;
-                    const msg = eventData.message[0];
-
-                    if (!msg) return;
+                // テストアラートも本番アラートも両方キャッチするように条件を広げました！
+                if (data.message) {
+                    const eventType = data.type; 
+                    const msg = data.message[0];
 
                     if (eventType === 'follow') {
                         store.follower.name = msg.name;
@@ -249,7 +281,11 @@
                         triggerAlertInterrupt('donation');
                     }
                 }
-            });
+            };
+
+            socket.onclose = () => {
+                setTimeout(() => { location.reload(); }, 5000);
+            };
         }
     </script>
 </body>
