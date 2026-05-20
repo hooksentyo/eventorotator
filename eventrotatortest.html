@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Streamlabs Real-time Event Rotator (Queue System)</title>
+    <title>Streamlabs Real-time Event Rotator (Font Awesome & Queue Support)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap">
     <style>
@@ -54,15 +54,19 @@
             transition: transform 0.3s cubic-bezier(0.7, 0, 0.84, 0), opacity 0.3s ease;
         }
 
-        .alert-bg-follow { background: #9146FF !important; }
-        .alert-bg-sub { background: #FFD700 !important; }
-        .alert-bg-donation { background: #FF0000 !important; }
+        /* 🎨 各アラートの背景色設定 */
+        .alert-bg-follow { background: #9146FF !important; }      /* 🟣 紫 */
+        .alert-bg-sub { background: #FFD700 !important; }         /* 🟡 金・黄 */
+        .alert-bg-bits { background: #00E5FF !important; }        /* 🔹 水色 (Bits) */
+        .alert-bg-donation { background: #FF0000 !important; }    /* 🔴 赤 */
 
+        /* 🚨 各アラートの外枠発光（グロウ効果） */
         #rotator-container.alert-active.alert-type-follow { box-shadow: 0 0 20px rgba(145, 70, 255, 0.6); border-color: rgba(255,255,255,0.4); }
         #rotator-container.alert-active.alert-type-sub { box-shadow: 0 0 20px rgba(255, 215, 0, 0.6); border-color: rgba(255,255,255,0.4); }
+        #rotator-container.alert-active.alert-type-bits { box-shadow: 0 0 20px rgba(0, 229, 255, 0.6); border-color: rgba(255,255,255,0.4); }
         #rotator-container.alert-active.alert-type-donation { box-shadow: 0 0 20px rgba(255, 0, 0, 0.6); border-color: rgba(255,255,255,0.4); }
 
-        /* 📝 テキスト・アイコン */
+        /* 📝 テキスト・アイコン共通 */
         .content-wrapper {
             position: absolute;
             top: 0;
@@ -90,7 +94,7 @@
             transform: translateY(-10px);
         }
 
-        /* アラート発生時専用の横スライド */
+        /* アラート発生時専用の横スライド効果 */
         #rotator-container.alert-active .content-wrapper.active {
             transform: translateX(-40px);
             opacity: 0;
@@ -102,17 +106,22 @@
             transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
         }
 
-        .theme-follow .icon { color: #9146FF; }
-        .theme-sub .icon { color: #FFD700; }
-        .theme-donation .icon { color: #FF0000; }
-
+        /* 📐 Font Awesome アイコン全体のサイズと文字色の設定 */
         .icon {
-            font-size: 16px;
+            font-size: 18px;
             margin-right: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 20px;
+            color: #AAAAAA; /* 通常時のアイコンの色 */
+            transition: color 0.3s ease, transform 0.3s ease;
+        }
+
+        /* 🚨 アラート発生時：文字アイコンを真っ白にして少し大きく */
+        #rotator-container.alert-active .icon { 
+            color: #FFFFFF !important;
+            transform: scale(1.15);
+            filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4)); 
         }
 
         .text-box {
@@ -131,9 +140,9 @@
             color: #AAAAAA;
         }
 
+        /* アラートモード時の文字装飾（白文字クッキリ化） */
         #rotator-container.alert-active .text-box { color: #FFFFFF !important; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
         #rotator-container.alert-active .prefix { color: #FFFFFF !important; opacity: 0.9; }
-        #rotator-container.alert-active .icon { color: #FFFFFF !important; transform: scale(1.1); filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4)); }
     </style>
 </head>
 <body>
@@ -142,6 +151,7 @@
         <div id="alert-bg-overlay"></div>
         <div id="wrapper-follower" class="content-wrapper"></div>
         <div id="wrapper-sub" class="content-wrapper"></div>
+        <div id="wrapper-bits" class="content-wrapper"></div>
         <div id="wrapper-donation" class="content-wrapper"></div>
     </div>
 
@@ -149,18 +159,21 @@
         const urlParams = new URLSearchParams(window.location.search);
         const TOKEN = urlParams.get('token'); 
 
-        const ROTATE_INTERVAL = 10000; 
-        const ALERT_DURATION = 5000;   // アラートの表示時間（5秒）
+        const ROTATE_INTERVAL = 10000; // 通常の切り替え間隔（10秒）
+        const ALERT_DURATION = 5000;   // アラートの固定表示時間（5秒）
 
+        // 📦 データの管理用ストア
         let store = {
             follower: { name: "No Data Yet", source: "theme-follow", prefix: "LAST FOLLOWER:" },
             sub: { name: "No Data Yet", source: "theme-sub", prefix: "LAST SUB:" },
+            bits: { name: "No Data Yet", source: "theme-bits", prefix: "LAST BITS:" },
             donation: { name: "No Data Yet", source: "theme-donation", prefix: "LAST DONATOR:" }
         };
 
         const wrappers = {
             follower: document.getElementById('wrapper-follower'),
             sub: document.getElementById('wrapper-sub'),
+            bits: document.getElementById('wrapper-bits'),
             donation: document.getElementById('wrapper-donation')
         };
         const container = document.getElementById('rotator-container');
@@ -169,7 +182,7 @@
         let currentKey = 'follower';
         let rotateTimer = null;
         
-        // 🔒 キュー（行列）管理用の変数
+        // 🔒 キュー（行列）管理用
         let alertQueue = [];
         let isProcessingAlert = false;
 
@@ -180,10 +193,20 @@
             
             wrapper.className = `content-wrapper ${data.source}`;
 
-            let iconHTML = '<i class="fa-solid fa-star"></i>'; 
-            if (key === 'follower') iconHTML = '<i class="fa-brands fa-twitch"></i>';
-            if (key === 'sub') iconHTML = '<i class="fa-solid fa-gem"></i>'; 
-            if (key === 'donation') iconHTML = '<i class="fa-solid fa-heart"></i>'; 
+            // 🌟 Font Awesomeのアイコンを設定
+            let iconHTML = ''; 
+            if (key === 'follower') {
+                iconHTML = '<i class="fa-brands fa-twitch"></i>'; 
+            } 
+            if (key === 'sub') {
+                iconHTML = '<i class="fa-solid fa-star"></i>';   
+            } 
+            if (key === 'bits') {
+                iconHTML = '<i class="fa-solid fa-gem"></i>';    
+            } 
+            if (key === 'donation') {
+                iconHTML = '<i class="fa-solid fa-heart"></i>';  
+            }
 
             wrapper.innerHTML = `
                 <div class="icon">${iconHTML}</div>
@@ -226,62 +249,55 @@
         function startRotation() {
             if (rotateTimer) clearInterval(rotateTimer);
             rotateTimer = setInterval(() => {
-                if (isProcessingAlert) return; // アラート処理中は通常ローテをスキップ
+                if (isProcessingAlert) return; // アラート処理中なら通常ローテはスキップ
                 const keys = Object.keys(store);
                 let nextIndex = (keys.indexOf(currentKey) + 1) % keys.length;
                 changeActiveWrapper(keys[nextIndex]);
             }, ROTATE_INTERVAL);
         }
 
-        // 📥 通知が来たらまず行列（キュー）に追加する関数
+        // 📥 通知を行列に並べる
         function enqueueAlert(key, name) {
             alertQueue.push({ key: key, name: name });
-            processQueue(); // キューの処理を開始
+            processQueue();
         }
 
-        // 🔄 行列を順番に消化していくコアロジック
+        // 🔄 行列の消化ロジック
         function processQueue() {
-            // すでにアラート演出中、または行列が空なら何もしない
             if (isProcessingAlert || alertQueue.length === 0) return;
 
-            isProcessingAlert = true; // ロック開始
+            isProcessingAlert = true; 
 
-            // 行列の先頭から1件取り出す
             const currentAlert = alertQueue.shift();
             const key = currentAlert.key;
 
-            // 最新データをストアに反映
             store[key].name = currentAlert.name;
 
-            // コンテナのリセット
             container.className = '';
             alertBg.className = '';
             
             let bgClass = 'alert-bg-follow';
             let typeClass = 'alert-type-follow';
             if (key === 'sub') { bgClass = 'alert-bg-sub'; typeClass = 'alert-type-sub'; }
+            if (key === 'bits') { bgClass = 'alert-bg-bits'; typeClass = 'alert-type-bits'; }
             if (key === 'donation') { bgClass = 'alert-bg-donation'; typeClass = 'alert-type-donation'; }
             
             alertBg.classList.add(bgClass);
 
-            // アラートアニメーション開始
             setTimeout(() => {
                 container.classList.add('alert-active', typeClass);
                 changeActiveWrapper(key, true);
             }, 30);
 
-            // ⏱️ 指定時間表示したら閉じる
             setTimeout(() => {
                 container.classList.remove('alert-active');
                 container.classList.add('alert-exit');
                 
-                // ハケきるのを待つ
                 setTimeout(() => {
                     container.className = '';
                     alertBg.className = '';
-                    isProcessingAlert = false; // ロック解除
+                    isProcessingAlert = false; 
                     
-                    // 次の行列がたまっていれば、100msの間を空けて次を再生
                     if (alertQueue.length > 0) {
                         setTimeout(() => { processQueue(); }, 100);
                     }
@@ -294,7 +310,7 @@
         if(wrappers[currentKey]) wrappers[currentKey].classList.add('active');
         startRotation();
 
-        // Streamlabs WebSocket
+        // Streamlabs WebSocket 接続
         if (!TOKEN) {
             document.body.innerHTML = "<div style='color:red; padding:10px; font-size:12px;'>エラー: URLの末尾に ?token=あなたのトークン を設定してください。</div>";
         } else {
@@ -322,10 +338,14 @@
                             const d = data.history.donation[0];
                             store.donation.name = `${d.name} (${d.currency}${d.amount})`;
                         }
+                        if (data.history.bits && data.history.bits.length > 0) {
+                            const b = data.history.bits[0];
+                            store.bits.name = `${b.name} (${b.amount}G)`;
+                        }
                         Object.keys(store).forEach(key => updateWrapperHTML(key));
                     }
 
-                    // リアルタイム通知受信時（ここで行列に追加するように変更）
+                    // リアルタイム通知受信時
                     if (data.message && data.message.length > 0) {
                         const eventType = data.type; 
                         const msg = data.message[0];
@@ -336,6 +356,10 @@
                         else if (eventType === 'subscription' || eventType === 'resub') {
                             enqueueAlert('sub', msg.name);
                         } 
+                        else if (eventType === 'bits') {
+                            const formattedBits = `${msg.name} (${msg.amount}G)`;
+                            enqueueAlert('bits', formattedBits);
+                        }
                         else if (eventType === 'donation') {
                             const formattedDonation = `${msg.name} (${msg.currency}${msg.amount})`;
                             enqueueAlert('donation', formattedDonation);
