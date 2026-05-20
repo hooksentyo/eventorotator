@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Streamlabs Real-time Event Rotator (Alert Robust Hold)</title>
+    <title>Streamlabs Real-time Event Rotator (Queue System)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap">
     <style>
@@ -23,15 +23,12 @@
             box-sizing: border-box;
             border-radius: 6px;
             overflow: hidden;
-            
-            /* 通常時はうっすら透ける綺麗な半透明黒座布団 */
             background: rgba(10, 10, 10, 0.8); 
             border: 1px solid rgba(255, 255, 255, 0.08);
-            
             transition: border-color 0.3s ease, box-shadow 0.3s ease;
         }
 
-        /* 🚨 アラート時に座布団丸ごと色を上書きするレイヤー */
+        /* 🚨 アラート背景レイヤー */
         #alert-bg-overlay {
             position: absolute;
             top: 0;
@@ -39,11 +36,11 @@
             width: 100%;
             height: 100%;
             z-index: 1;
-            transform: translateX(-100%); /* 初期は左側に完全格納 */
+            transform: translateX(-100%);
             opacity: 0;
         }
 
-        /* 🔥 アラート起動時のスライドイン（イージングを極限までスムーズに） */
+        /* アラート起動時のスライドイン */
         #rotator-container.alert-active #alert-bg-overlay {
             opacity: 1;
             transform: translateX(0);
@@ -57,17 +54,15 @@
             transition: transform 0.3s cubic-bezier(0.7, 0, 0.84, 0), opacity 0.3s ease;
         }
 
-        /* 各テーマのベタ塗り座布団カラー */
-        .alert-bg-follow { background: #9146FF !important; }      /* 🟣 フォローは紫 */
-        .alert-bg-sub { background: #FFD700 !important; }         /* 🟡 サブスクは黄 */
-        .alert-bg-donation { background: #FF0000 !important; }    /* 🔴 ドネーションは赤 */
+        .alert-bg-follow { background: #9146FF !important; }
+        .alert-bg-sub { background: #FFD700 !important; }
+        .alert-bg-donation { background: #FF0000 !important; }
 
-        /* 🚨 アラート時の外枠発光グロウ */
         #rotator-container.alert-active.alert-type-follow { box-shadow: 0 0 20px rgba(145, 70, 255, 0.6); border-color: rgba(255,255,255,0.4); }
         #rotator-container.alert-active.alert-type-sub { box-shadow: 0 0 20px rgba(255, 215, 0, 0.6); border-color: rgba(255,255,255,0.4); }
         #rotator-container.alert-active.alert-type-donation { box-shadow: 0 0 20px rgba(255, 0, 0, 0.6); border-color: rgba(255,255,255,0.4); }
 
-        /* 📝 中身のテキスト・アイコン */
+        /* 📝 テキスト・アイコン */
         .content-wrapper {
             position: absolute;
             top: 0;
@@ -79,14 +74,12 @@
             padding: 0 16px;
             box-sizing: border-box;
             z-index: 3;
-            
             opacity: 0;
             transform: translateY(10px);
             transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
             visibility: hidden;
         }
 
-        /* 通常ローテーション時の切り替え */
         .content-wrapper.active {
             opacity: 1;
             transform: translateY(0);
@@ -97,7 +90,7 @@
             transform: translateY(-10px);
         }
 
-        /* 🚨 アラート発生時専用の文字横スライド（座布団の勢いに合わせて左からシュッ！） */
+        /* アラート発生時専用の横スライド */
         #rotator-container.alert-active .content-wrapper.active {
             transform: translateX(-40px);
             opacity: 0;
@@ -109,7 +102,6 @@
             transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
         }
 
-        /* 通常時のアイコン色 */
         .theme-follow .icon { color: #9146FF; }
         .theme-sub .icon { color: #FFD700; }
         .theme-donation .icon { color: #FF0000; }
@@ -139,20 +131,15 @@
             color: #AAAAAA;
         }
 
-        /* アラートモード時の白文字クッキリ化装飾 */
         #rotator-container.alert-active .text-box { color: #FFFFFF !important; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
         #rotator-container.alert-active .prefix { color: #FFFFFF !important; opacity: 0.9; }
         #rotator-container.alert-active .icon { color: #FFFFFF !important; transform: scale(1.1); filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4)); }
-
     </style>
 </head>
 <body>
 
     <div id="rotator-container">
-        <!-- 色付き座布団背景レイヤー -->
         <div id="alert-bg-overlay"></div>
-
-        <!-- テキストレイヤー -->
         <div id="wrapper-follower" class="content-wrapper"></div>
         <div id="wrapper-sub" class="content-wrapper"></div>
         <div id="wrapper-donation" class="content-wrapper"></div>
@@ -163,7 +150,7 @@
         const TOKEN = urlParams.get('token'); 
 
         const ROTATE_INTERVAL = 10000; 
-        const ALERT_DURATION = 5000;   // 💡 ここを例えば 7000 に増やすと、アラート座布団がもっと長く画面に留まります
+        const ALERT_DURATION = 5000;   // アラートの表示時間（5秒）
 
         let store = {
             follower: { name: "No Data Yet", source: "theme-follow", prefix: "LAST FOLLOWER:" },
@@ -181,7 +168,10 @@
 
         let currentKey = 'follower';
         let rotateTimer = null;
-        let isAlerting = false; // 🔒 このフラグでアラートを最優先ロックします
+        
+        // 🔒 キュー（行列）管理用の変数
+        let alertQueue = [];
+        let isProcessingAlert = false;
 
         function updateWrapperHTML(key) {
             const data = store[key];
@@ -208,7 +198,6 @@
             const currentWrapper = wrappers[currentKey];
             const nextWrapper = wrappers[nextKey];
 
-            // 1. 古い文字を非アクティブにする
             if (currentWrapper && currentWrapper.classList.contains('active')) {
                 currentWrapper.classList.add('exit');
                 setTimeout(() => {
@@ -216,22 +205,18 @@
                 }, 400);
             }
 
-            // 2. 新しい文字のデータを反映
             currentKey = nextKey;
             updateWrapperHTML(nextKey);
             
             if (isAlertCall) {
-                // 🚨 アラート時：座布団の滑り込みに完全に同期させて文字を左から右へ
                 if(nextWrapper) {
                     nextWrapper.classList.remove('exit', 'slide-ready');
                     nextWrapper.classList.add('active');
-                    // 確実にクラスがリセットされてからアニメーションを開始させるための20ms
                     setTimeout(() => {
                         nextWrapper.classList.add('slide-ready');
                     }, 20);
                 }
             } else {
-                // 🔄 通常時：下からふわっと出現
                 setTimeout(() => {
                     if(nextWrapper) nextWrapper.classList.add('active');
                 }, 50);
@@ -241,21 +226,37 @@
         function startRotation() {
             if (rotateTimer) clearInterval(rotateTimer);
             rotateTimer = setInterval(() => {
-                if (isAlerting) return; // 🔒 アラート中は10秒タイマーの割り込みを完全にスルーする
+                if (isProcessingAlert) return; // アラート処理中は通常ローテをスキップ
                 const keys = Object.keys(store);
                 let nextIndex = (keys.indexOf(currentKey) + 1) % keys.length;
                 changeActiveWrapper(keys[nextIndex]);
             }, ROTATE_INTERVAL);
         }
 
-        function triggerAlertInterrupt(key) {
-            isAlerting = true; // 🔒 アラートロック開始！通常ローテを停止。
-            
-            // 状態クラスを完全に真っさらにリセット
+        // 📥 通知が来たらまず行列（キュー）に追加する関数
+        function enqueueAlert(key, name) {
+            alertQueue.push({ key: key, name: name });
+            processQueue(); // キューの処理を開始
+        }
+
+        // 🔄 行列を順番に消化していくコアロジック
+        function processQueue() {
+            // すでにアラート演出中、または行列が空なら何もしない
+            if (isProcessingAlert || alertQueue.length === 0) return;
+
+            isProcessingAlert = true; // ロック開始
+
+            // 行列の先頭から1件取り出す
+            const currentAlert = alertQueue.shift();
+            const key = currentAlert.key;
+
+            // 最新データをストアに反映
+            store[key].name = currentAlert.name;
+
+            // コンテナのリセット
             container.className = '';
             alertBg.className = '';
             
-            // アラートの種類に応じた色をセット
             let bgClass = 'alert-bg-follow';
             let typeClass = 'alert-type-follow';
             if (key === 'sub') { bgClass = 'alert-bg-sub'; typeClass = 'alert-type-sub'; }
@@ -263,22 +264,27 @@
             
             alertBg.classList.add(bgClass);
 
-            // ブラウザの再レンダリングを待ってから、スライドインのアニメーションクラスを付与
+            // アラートアニメーション開始
             setTimeout(() => {
                 container.classList.add('alert-active', typeClass);
                 changeActiveWrapper(key, true);
             }, 30);
 
-            // ⏱️ 5秒間経ったら退出処理を開始
+            // ⏱️ 指定時間表示したら閉じる
             setTimeout(() => {
                 container.classList.remove('alert-active');
                 container.classList.add('alert-exit');
                 
-                // 右側にハケ終わるのを待ってから通常モードに完全復帰
+                // ハケきるのを待つ
                 setTimeout(() => {
                     container.className = '';
                     alertBg.className = '';
-                    isAlerting = false; // 🔓 アラートロック解除
+                    isProcessingAlert = false; // ロック解除
+                    
+                    // 次の行列がたまっていれば、100msの間を空けて次を再生
+                    if (alertQueue.length > 0) {
+                        setTimeout(() => { processQueue(); }, 100);
+                    }
                 }, 400);
             }, ALERT_DURATION);
         }
@@ -288,7 +294,7 @@
         if(wrappers[currentKey]) wrappers[currentKey].classList.add('active');
         startRotation();
 
-        // Streamlabs WebSocket 接続処理
+        // Streamlabs WebSocket
         if (!TOKEN) {
             document.body.innerHTML = "<div style='color:red; padding:10px; font-size:12px;'>エラー: URLの末尾に ?token=あなたのトークン を設定してください。</div>";
         } else {
@@ -310,12 +316,8 @@
                     
                     // 履歴の初期ロード
                     if (data.type === 'init' && data.history) {
-                        if (data.history.follow && data.history.follow.length > 0) {
-                            store.follower.name = data.history.follow[0].name;
-                        }
-                        if (data.history.subscription && data.history.subscription.length > 0) {
-                            store.sub.name = data.history.subscription[0].name;
-                        }
+                        if (data.history.follow && data.history.follow.length > 0) store.follower.name = data.history.follow[0].name;
+                        if (data.history.subscription && data.history.subscription.length > 0) store.sub.name = data.history.subscription[0].name;
                         if (data.history.donation && data.history.donation.length > 0) {
                             const d = data.history.donation[0];
                             store.donation.name = `${d.name} (${d.currency}${d.amount})`;
@@ -323,22 +325,20 @@
                         Object.keys(store).forEach(key => updateWrapperHTML(key));
                     }
 
-                    // リアルタイム通知受信時
+                    // リアルタイム通知受信時（ここで行列に追加するように変更）
                     if (data.message && data.message.length > 0) {
                         const eventType = data.type; 
                         const msg = data.message[0];
 
                         if (eventType === 'follow') {
-                            store.follower.name = msg.name;
-                            triggerAlertInterrupt('follower');
+                            enqueueAlert('follower', msg.name);
                         } 
                         else if (eventType === 'subscription' || eventType === 'resub') {
-                            store.sub.name = msg.name;
-                            triggerAlertInterrupt('sub');
+                            enqueueAlert('sub', msg.name);
                         } 
                         else if (eventType === 'donation') {
-                            store.donation.name = `${msg.name} (${msg.currency}${msg.amount})`;
-                            triggerAlertInterrupt('donation');
+                            const formattedDonation = `${msg.name} (${msg.currency}${msg.amount})`;
+                            enqueueAlert('donation', formattedDonation);
                         }
                     }
                 } catch (e) { console.error("Data parse error: ", e); }
