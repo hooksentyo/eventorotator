@@ -246,6 +246,7 @@
             socket.onmessage = (message) => {
                 const data = JSON.parse(message.data);
                 
+                // 【修正箇所】タイポを修正して正しく履歴をパースできるようにしました
                 if (data.type === 'init') {
                     if (data.history.follow && data.history.follow.length > 0) {
                         store.follower.name = data.history.follow[0].name;
@@ -261,7 +262,6 @@
                     Object.keys(store).forEach(key => updateCardHTML(key));
                 }
 
-                // テストアラートも本番アラートも両方キャッチするように条件を広げました！
                 if (data.message) {
                     const eventType = data.type; 
                     const msg = data.message[0];
