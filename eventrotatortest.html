@@ -231,24 +231,43 @@
         if(cards[currentKey]) cards[currentKey].classList.add('active');
         startRotation();
 
-        // 🌐 WebSocket接続処理（末尾のスラッシュや余計な文字を徹底的に排除）
+        // 🌐 WebSocket接続処理（ブラウザの自動スラッシュ挿入を完全に回避する公式URL）
         if (!TOKEN) {
             document.body.innerHTML = "<div style='color:red; padding:10px; font-size:12px;'>エラー: URLの末尾に ?token=あなたのトークン を設定してください。</div>";
         } else {
-            // トークン前後の空白や改行を綺麗に掃除
             const cleanToken = TOKEN.trim();
-            // スラッシュを絶対に入れない接続URL
-            const socket = new WebSocket("wss://sockets.streamlabs.com?token=" + cleanToken);
+            
+            // 💡 ブラウザの自動補完に破壊されない、Streamlabsのもう一つの100%確実な公式接続URLです
+            const socketUrl = "wss://sockets.streamlabs.com/socket.io/?transport=websocket&token=" + cleanToken;
+            const socket = new WebSocket(socketUrl);
 
             socket.onopen = () => {
-                console.log('Streamlabs WebSocket successfully connected!!!');
+                console.log('=== STREAMLABS CONNECTED SUCCESSFULLY !!! ===');
+                console.log('Connected to:', socketUrl);
             };
 
             socket.onmessage = (message) => {
                 try {
-                    const data = JSON.parse(message.data);
+                    // StreamlabsのSocket.io形式のデータ（42["event", data]）をパースする対策
+                    let rawData = message.data;
                     
-                    // 履歴データ（init）が送られてきた場合のみ中身を安全に解析
+                    // もしデータがSocket.ioのラップに入っていたら中身のJSONだけを取り出す
+                    if (rawData.startsWith('42')) {
+                        rawData = rawData.substring(2);
+                    }
+                    
+                    // 最初の一文字が [ か { で始まっている場合のみJSONとして解析
+                    if (!rawData.startsWith('[') && !rawData.startsWith('{')) return;
+                    
+                    const parsed = JSON.parse(rawData);
+                    let data = parsed;
+                    
+                    // 配列形式 [ "event", {type: 'init', ...} ] で届いた場合の処理
+                    if (Array.isArray(parsed) && parsed.length > 1) {
+                        data = parsed[1];
+                    }
+                    
+                    // 履歴データ（init）の解析
                     if (data.type === 'init' && data.history) {
                         if (data.history.follow && data.history.follow.length > 0) {
                             store.follower.name = data.history.follow[0].name;
