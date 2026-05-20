@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Streamlabs Real-time Event Rotator</title>
+    <title>Streamlabs Real-time Event Rotator (Transparent Spec)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap">
     <style>
@@ -15,22 +15,25 @@
             -webkit-font-smoothing: antialiased;
         }
 
+        /* 📦 外枠コンテナ（ここに極細のグラデーション枠線を仕込みます） */
         #rotator-container {
             width: 400px;
             height: 50px;
             position: relative;
-            padding: 4px;
             box-sizing: border-box;
+            overflow: hidden;
+            border-radius: 6px;
+            background: transparent;
         }
 
-        /* 🎨 1個の光がゆっくり周回するネオンエフェクト */
-        .event-card::before {
+        /* 🌈 【枠線専用】中で回転するネオンの光（borderのように1pxの隙間だけ見せる） */
+        #rotator-container::before {
             content: '';
             position: absolute;
-            top: -60%;
-            left: -60%;
-            width: 220%;
-            height: 220%;
+            top: -150%;
+            left: -50%;
+            width: 200%;
+            height: 400%;
             background: conic-gradient(
                 from 0deg,
                 #9146FF 0%,
@@ -42,64 +45,61 @@
             z-index: 1;
         }
 
-        .event-card {
+        /* ⬛ 【中心の黒座布団】ここを念願の「半透明」に！ */
+        #rotator-container::after {
+            content: '';
             position: absolute;
-            top: 4px;
-            left: 4px;
-            width: calc(100% - 8px);
-            height: calc(100% - 8px);
-            display: flex;
-            align-items: center;
-            padding: 0 16px;
-            box-sizing: border-box;
-            overflow: hidden; 
-            border-radius: 6px;
-            
-            opacity: 0;
-            transform: translateY(15px);
-            transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
-            visibility: hidden;
+            /* 上下左右を1pxずつ縮めることで、裏のネオンを「1pxの細い枠線」として見せています */
+            top: 1px;
+            left: 1px;
+            width: calc(100% - 2px);
+            height: calc(100% - 2px);
+            background: rgba(15, 15, 15, 0.75); /* 💡 0.75＝透明度75%のシースルー黒座布団 */
+            border-radius: 5px;
+            z-index: 2;
         }
 
-        .event-card::after {
-            content: '';
+        /* 🚨 アラート発生時の発光（半透明の座布団ごと綺麗に光ります） */
+        #rotator-container.alert-active {
+            animation: alertShake 0.4s linear;
+        }
+        #rotator-container.alert-active.twitch { box-shadow: 0 0 25px rgba(145, 70, 255, 0.8); }
+        #rotator-container.alert-active.youtube { box-shadow: 0 0 25px rgba(255, 0, 0, 0.8); }
+        #rotator-container.alert-active.donation-theme { box-shadow: 0 0 25px rgba(0, 230, 118, 0.8); }
+
+        /* 📝 中身のテキスト・アイコン（位置を1pxずつ調整） */
+        .content-wrapper {
             position: absolute;
             top: 1px;
             left: 1px;
             width: calc(100% - 2px);
             height: calc(100% - 2px);
-            background: rgba(15, 15, 15, 0.95);
-            border-radius: 5px;
-            z-index: 2;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            box-sizing: border-box;
+            z-index: 3; /* 半透明座布団（z-index: 2）の上に綺麗に乗せます */
+            
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            visibility: hidden;
         }
 
-        .event-card.active {
+        .content-wrapper.active {
             opacity: 1;
             transform: translateY(0);
             visibility: visible;
-            z-index: 10;
         }
 
-        .event-card.exit {
+        .content-wrapper.exit {
             opacity: 0;
-            transform: translateY(-15px);
+            transform: translateY(-12px);
         }
 
-        .event-card.alert-active {
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.15);
-        }
-
-        .content {
-            position: relative;
-            z-index: 3;
-            display: flex;
-            align-items: center;
-            width: 100%;
-        }
-
-        .event-card.twitch .icon { color: #9146FF; }
-        .event-card.youtube .icon { color: #FF0000; }
-        .event-card.donation-theme .icon { color: #00E676; }
+        .twitch .icon { color: #9146FF; }
+        .youtube .icon { color: #FF0000; }
+        .donation-theme .icon { color: #00E676; }
 
         .icon {
             font-size: 18px;
@@ -108,7 +108,7 @@
             align-items: center;
             justify-content: center;
             width: 24px;
-            height: 100%;
+            transition: transform 0.3s ease;
         }
 
         .text-box {
@@ -128,59 +128,73 @@
             color: #999;
         }
 
+        /* アラートモード時の文字装飾 */
+        #rotator-container.alert-active .text-box { color: #FFFFFF !important; text-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+        #rotator-container.alert-active .prefix { color: #FFFFFF !important; opacity: 0.9; }
+        #rotator-container.alert-active .icon { color: #FFFFFF !important; transform: scale(1.2); }
+
         @keyframes rotateNeon {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
+        }
+
+        @keyframes alertShake {
+            0% { transform: translate(0, 0); }
+            10% { transform: translate(-3px, -1px); }
+            20% { transform: translate(3px, 1px); }
+            30% { transform: translate(-3px, 1px); }
+            40% { transform: translate(3px, -1px); }
+            50% { transform: translate(-1px, 1px); }
+            60% { transform: translate(1px, -1px); }
+            100% { transform: translate(0, 0); }
         }
     </style>
 </head>
 <body>
 
     <div id="rotator-container">
-        <div id="card-follower" class="event-card"><div class="content"></div></div>
-        <div id="card-sub" class="event-card"><div class="content"></div></div>
-        <div id="card-donation" class="event-card"><div class="content"></div></div>
+        <div id="wrapper-follower" class="content-wrapper"></div>
+        <div id="wrapper-sub" class="content-wrapper"></div>
+        <div id="wrapper-donation" class="content-wrapper"></div>
     </div>
 
     <script>
-        // URL末尾からトークンを取得
         const urlParams = new URLSearchParams(window.location.search);
         const TOKEN = urlParams.get('token'); 
 
         const ROTATE_INTERVAL = 10000; 
         const ALERT_DURATION = 5000;   
 
-        // 💡 待機中に「LOADING...」で止まって見えないよう、初期値を「READY」やサンプル名に安全に書き換えます
         let store = {
             follower: { name: "No Data Yet", source: "twitch", prefix: "LAST FOLLOWER" },
             sub: { name: "No Data Yet", source: "twitch", prefix: "LAST SUB" },
             donation: { name: "$0.00", source: "donation-theme", prefix: "LAST DONATOR" }
         };
 
-        const cards = {
-            follower: document.getElementById('card-follower'),
-            sub: document.getElementById('card-sub'),
-            donation: document.getElementById('card-donation')
+        const wrappers = {
+            follower: document.getElementById('wrapper-follower'),
+            sub: document.getElementById('wrapper-sub'),
+            donation: document.getElementById('wrapper-donation')
         };
+        const container = document.getElementById('rotator-container');
 
         let currentKey = 'follower';
         let rotateTimer = null;
         let isAlerting = false;
 
-        function updateCardHTML(key) {
+        function updateWrapperHTML(key) {
             const data = store[key];
-            const card = cards[key];
-            if (!card) return;
+            const wrapper = wrappers[key];
+            if (!wrapper) return;
             
-            card.className = `event-card ${data.source}`;
-            if (isAlerting && currentKey === key) card.classList.add('alert-active');
+            wrapper.className = `content-wrapper ${data.source}`;
 
             let iconHTML = '<i class="fa-solid fa-star"></i>'; 
             if (data.source === 'twitch') iconHTML = '<i class="fa-brands fa-twitch"></i>';
             if (data.source === 'youtube') iconHTML = '<i class="fa-brands fa-youtube"></i>';
             if (data.source === 'donation-theme') iconHTML = '<i class="fa-solid fa-money-bill-wave"></i>';
 
-            card.querySelector('.content').innerHTML = `
+            wrapper.innerHTML = `
                 <div class="icon">${iconHTML}</div>
                 <div class="text-box">
                     <span class="prefix">${data.prefix}:</span>
@@ -189,22 +203,22 @@
             `;
         }
 
-        function changeActiveCard(nextKey) {
-            const currentCard = cards[currentKey];
-            const nextCard = cards[nextKey];
+        function changeActiveWrapper(nextKey) {
+            const currentWrapper = wrappers[currentKey];
+            const nextWrapper = wrappers[nextKey];
 
-            if (currentCard && currentCard.classList.contains('active')) {
-                currentCard.classList.add('exit');
+            if (currentWrapper && currentWrapper.classList.contains('active')) {
+                currentWrapper.classList.add('exit');
                 setTimeout(() => {
-                    currentCard.classList.remove('active', 'exit');
-                }, 500);
+                    currentWrapper.classList.remove('active', 'exit');
+                }, 400);
             }
 
             currentKey = nextKey;
-            updateCardHTML(nextKey);
+            updateWrapperHTML(nextKey);
             
             setTimeout(() => {
-                if(nextCard) nextCard.classList.add('active');
+                if(nextWrapper) nextWrapper.classList.add('active');
             }, 50);
         }
 
@@ -214,60 +228,44 @@
                 if (isAlerting) return;
                 const keys = Object.keys(store);
                 let nextIndex = (keys.indexOf(currentKey) + 1) % keys.length;
-                changeActiveCard(keys[nextIndex]);
+                changeActiveWrapper(keys[nextIndex]);
             }, ROTATE_INTERVAL);
         }
 
         function triggerAlertInterrupt(key) {
             isAlerting = true;
-            changeActiveCard(key);
+            const sourceClass = store[key].source;
+            container.className = `alert-active ${sourceClass}`;
+            changeActiveWrapper(key);
             setTimeout(() => {
                 isAlerting = false;
+                container.className = '';
             }, ALERT_DURATION);
         }
 
-        // 初期実行（データがなくても強制的にローテーションを回す）
-        Object.keys(store).forEach(key => updateCardHTML(key));
-        if(cards[currentKey]) cards[currentKey].classList.add('active');
+        Object.keys(store).forEach(key => updateWrapperHTML(key));
+        if(wrappers[currentKey]) wrappers[currentKey].classList.add('active');
         startRotation();
 
-        // 🌐 WebSocket接続処理（ブラウザの自動スラッシュ挿入を完全に回避する公式URL）
         if (!TOKEN) {
             document.body.innerHTML = "<div style='color:red; padding:10px; font-size:12px;'>エラー: URLの末尾に ?token=あなたのトークン を設定してください。</div>";
         } else {
             const cleanToken = TOKEN.trim();
-            
-            // 💡 ブラウザの自動補完に破壊されない、Streamlabsのもう一つの100%確実な公式接続URLです
             const socketUrl = "wss://sockets.streamlabs.com/socket.io/?transport=websocket&token=" + cleanToken;
             const socket = new WebSocket(socketUrl);
 
-            socket.onopen = () => {
-                console.log('=== STREAMLABS CONNECTED SUCCESSFULLY !!! ===');
-                console.log('Connected to:', socketUrl);
-            };
+            socket.onopen = () => { console.log('=== STREAMLABS CONNECTED SUCCESSFULLY ==='); };
 
             socket.onmessage = (message) => {
                 try {
-                    // StreamlabsのSocket.io形式のデータ（42["event", data]）をパースする対策
                     let rawData = message.data;
-                    
-                    // もしデータがSocket.ioのラップに入っていたら中身のJSONだけを取り出す
-                    if (rawData.startsWith('42')) {
-                        rawData = rawData.substring(2);
-                    }
-                    
-                    // 最初の一文字が [ か { で始まっている場合のみJSONとして解析
+                    if (rawData.startsWith('42')) { rawData = rawData.substring(2); }
                     if (!rawData.startsWith('[') && !rawData.startsWith('{')) return;
                     
                     const parsed = JSON.parse(rawData);
                     let data = parsed;
+                    if (Array.isArray(parsed) && parsed.length > 1) { data = parsed[1]; }
                     
-                    // 配列形式 [ "event", {type: 'init', ...} ] で届いた場合の処理
-                    if (Array.isArray(parsed) && parsed.length > 1) {
-                        data = parsed[1];
-                    }
-                    
-                    // 履歴データ（init）の解析
                     if (data.type === 'init' && data.history) {
                         if (data.history.follow && data.history.follow.length > 0) {
                             store.follower.name = data.history.follow[0].name;
@@ -280,10 +278,9 @@
                         if (data.history.donation && data.history.donation.length > 0) {
                             store.donation.name = `${data.history.donation[0].currency}${data.history.donation[0].amount}`;
                         }
-                        Object.keys(store).forEach(key => updateCardHTML(key));
+                        Object.keys(store).forEach(key => updateWrapperHTML(key));
                     }
 
-                    // 配信中のリアルタイム通知（テストアラート通知もここを通ります）
                     if (data.message && data.message.length > 0) {
                         const eventType = data.type; 
                         const msg = data.message[0];
@@ -303,15 +300,10 @@
                             triggerAlertInterrupt('donation');
                         }
                     }
-                } catch (e) {
-                    console.error("Data parse error: ", e);
-                }
+                } catch (e) { console.error("Data parse error: ", e); }
             };
 
-            socket.onclose = () => {
-                console.log('WebSocket closed. Reconnecting...');
-                setTimeout(() => { location.reload(); }, 5000);
-            };
+            socket.onclose = () => { setTimeout(() => { location.reload(); }, 5000); };
         }
     </script>
 </body>
