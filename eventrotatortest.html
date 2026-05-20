@@ -231,15 +231,17 @@
         if(cards[currentKey]) cards[currentKey].classList.add('active');
         startRotation();
 
-        // 🌐 WebSocket接続処理（確実なURLパラメータ付与方式に戻します）
+        // 🌐 WebSocket接続処理（末尾のスラッシュや余計な文字を徹底的に排除）
         if (!TOKEN) {
             document.body.innerHTML = "<div style='color:red; padding:10px; font-size:12px;'>エラー: URLの末尾に ?token=あなたのトークン を設定してください。</div>";
         } else {
-            // Streamlabsのバックエンドライブラリと同じ接続方法を採用
-            const socket = new WebSocket(`wss://sockets.streamlabs.com?token=${TOKEN}`);
+            // トークン前後の空白や改行を綺麗に掃除
+            const cleanToken = TOKEN.trim();
+            // スラッシュを絶対に入れない接続URL
+            const socket = new WebSocket("wss://sockets.streamlabs.com?token=" + cleanToken);
 
             socket.onopen = () => {
-                console.log('Streamlabs WebSocket successfully connected!');
+                console.log('Streamlabs WebSocket successfully connected!!!');
             };
 
             socket.onmessage = (message) => {
